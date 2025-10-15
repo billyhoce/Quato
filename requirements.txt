@@ -1,40 +1,40 @@
 # Core dependencies
-openai>=1.0.0
-anthropic>=0.7.0
-python-dotenv>=1.0.0
+openai
+anthropic
+python-dotenv
 
 # QuantRocket
-quantrocket-client>=2.9.0
+quantrocket-client
 
 # Data processing
-pandas>=2.0.0
-numpy>=1.24.0
+pandas
+numpy0
 
 # Backtesting and analysis
-backtrader>=1.9.78
-zipline-reloaded>=3.0.0
-pyfolio-reloaded>=0.9.5
+backtrader
+zipline-reloaded
+pyfolio-reloaded
 
 # Visualization
-matplotlib>=3.7.0
-seaborn>=0.12.0
-plotly>=5.14.0
+matplotlib
+seaborn
+plotly
 
 # Type checking and validation
-pydantic>=2.0.0
-typing-extensions>=4.5.0
+pydantic
+typing-extensions
 
 # Utilities
-requests>=2.31.0
-aiohttp>=3.9.0
-python-dateutil>=2.8.0
+requests
+aiohttp
+python-dateutil
 
 # Testing (optional)
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-pytest-cov>=4.1.0
+pytest
+pytest-asyncio
+pytest-cov
 
 # Development tools (optional)
-black>=23.0.0
-flake8>=6.0.0
-mypy>=1.4.0
+black
+flake8
+mypy
