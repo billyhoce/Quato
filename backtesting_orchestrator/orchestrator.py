@@ -2,55 +2,12 @@
 
 This module orchestrates the execution and analysis of strategy backtests.
 """
+import logging
 
+from quantrocket import zipline
 from typing import Dict, Any, Optional, List
-from dataclasses import dataclass
-from datetime import datetime
-
-
-@dataclass
-class BacktestConfig:
-    """Configuration for a backtest.
-    
-    Attributes:
-        strategy_id: ID of the strategy to backtest
-        start_date: Backtest start date
-        end_date: Backtest end date
-        initial_capital: Starting capital for the backtest
-        commission: Commission rate per trade
-        slippage: Slippage model parameters
-    """
-    strategy_id: str
-    start_date: datetime
-    end_date: datetime
-    initial_capital: float
-    commission: float = 0.001
-    slippage: Dict[str, Any] = None
-
-
-@dataclass
-class BacktestResults:
-    """Results from a backtest execution.
-    
-    Attributes:
-        strategy_id: ID of the backtested strategy
-        total_return: Total return percentage
-        sharpe_ratio: Sharpe ratio of returns
-        max_drawdown: Maximum drawdown percentage
-        win_rate: Percentage of winning trades
-        num_trades: Total number of trades
-        execution_time: Time taken to run backtest
-        metrics: Additional performance metrics
-    """
-    strategy_id: str
-    total_return: float
-    sharpe_ratio: float
-    max_drawdown: float
-    win_rate: float
-    num_trades: int
-    execution_time: float
-    metrics: Dict[str, Any]
-
+from datetime import time
+from models.backtest_models import BacktestConfig, BacktestResults, US_FREE_STOCK_BUNDLE
 
 class BacktestingOrchestrator:
     """Orchestrates strategy backtesting with QuantRocket.
@@ -59,35 +16,44 @@ class BacktestingOrchestrator:
     execution, performance analysis, and result reporting.
     """
     
-    def __init__(self, quantrocket_url: Optional[str] = None) -> None:
+    def __init__(self, quantrocket_url: str) -> None:
         """Initialize the backtesting orchestrator.
         
         Args:
             quantrocket_url: URL of the QuantRocket instance (if None, uses default)
         """
-        self.quantrocket_url = quantrocket_url or "http://localhost:1969"
+        if not quantrocket_url:
+            raise ValueError("QuantRocket URL must be provided.")
+        self.quantrocket_url = quantrocket_url
         self.results_cache: Dict[str, BacktestResults] = {}
-    
-    def prepare_data(
-        self,
-        symbols: List[str],
-        start_date: datetime,
-        end_date: datetime
-    ) -> Dict[str, Any]:
-        """Prepare market data for backtesting.
+
+
+    def check_ingestion_status(self, bundle_code: str) -> bool:
+        """Check if the specified data bundle is ingested and ready for backtesting.
         
         Args:
-            symbols: List of symbols to fetch data for
-            start_date: Start date for data
-            end_date: End date for data
-            
-        Returns:
-            Dictionary containing prepared market data
+            bundle_code: The code of the data bundle to check
         """
-        # Placeholder implementation
-        print(f"Preparing data for {len(symbols)} symbols from {start_date} to {end_date}")
-        return {}
+        existing_bundles = zipline.list_bundles()
+        if bundle_code not in existing_bundles:
+            raise ValueError(f"Bundle {bundle_code} does not exist.")
+        return existing_bundles[bundle_code]
     
+
+    def prepare_free_data(self):
+        """Prepare free quantrocket data bundles for backtesting."""
+        existing_bundles = zipline.list_bundles()
+        if US_FREE_STOCK_BUNDLE not in existing_bundles:
+            zipline.create_usstock_bundle(code=US_FREE_STOCK_BUNDLE, free=True)
+            logging.info(f"Created {US_FREE_STOCK_BUNDLE} data bundle.")
+        if not existing_bundles[US_FREE_STOCK_BUNDLE]:
+            zipline.ingest_bundle(US_FREE_STOCK_BUNDLE)
+            logging.info(f"Ingesting {US_FREE_STOCK_BUNDLE} data bundle.")
+            while not self.check_ingestion_status(US_FREE_STOCK_BUNDLE):
+                logging.info("Waiting for ingestion to complete...")
+                time.sleep(20)
+            logging.info(f"Ingestion of {US_FREE_STOCK_BUNDLE} completed.")
+
     def run_backtest(
         self,
         strategy_code: str,
