@@ -43,6 +43,9 @@ class BacktestingOrchestrator:
     def prepare_free_data(self):
         """Prepare free quantrocket data bundles for backtesting."""
         existing_bundles = zipline.list_bundles()
+        if US_FREE_STOCK_BUNDLE in existing_bundles and existing_bundles[US_FREE_STOCK_BUNDLE]:
+            logging.info(f"{US_FREE_STOCK_BUNDLE} data bundle already ingested.")
+            return
         if US_FREE_STOCK_BUNDLE not in existing_bundles:
             zipline.create_usstock_bundle(code=US_FREE_STOCK_BUNDLE, free=True)
             logging.info(f"Created {US_FREE_STOCK_BUNDLE} data bundle.")
@@ -53,7 +56,8 @@ class BacktestingOrchestrator:
                 logging.info("Waiting for ingestion to complete...")
                 time.sleep(20)
             logging.info(f"Ingestion of {US_FREE_STOCK_BUNDLE} completed.")
-
+        
+ 
     def run_backtest(
         self,
         strategy_code: str,
