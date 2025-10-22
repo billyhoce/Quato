@@ -1,27 +1,31 @@
 from pydantic import BaseModel
-from datetime import datetime
-from typing import Dict, Any
+from datetime import date
+from typing import Dict, Any, Optional
 
 US_FREE_STOCK_BUNDLE = "usstock-free-1min"
 
 class BacktestConfig(BaseModel):
-    """Configuration for a backtest.
-    
-    Attributes:
-        strategy_id: ID of the strategy to backtest
-        start_date: Backtest start date
-        end_date: Backtest end date
-        initial_capital: Starting capital for the backtest
-        commission: Commission rate per trade
-        slippage: Slippage model parameters
     """
-    strategy_id: str
-    start_date: datetime
-    end_date: datetime
-    initial_capital: float
-    commission: float = 0.001
-    slippage: Dict[str, Any] = None
+    Configuration for a backtest execution.
 
+    Attributes:
+        data_frequency: Only needs to set to request daily data from a minute bundle.
+        capital_base: Initial capital for the backtest
+        bundle: Data bundle code to use
+        start_date: Start date of the backtest
+        end_date: End date of the backtest
+        progress: Level of progress reporting, default is "M" for monthly
+        params: One or more strategy parameters (defined as module-level attributes in the algo file)
+        filepath_or_buffer: Filepath or buffer to save backtest results
+    """
+    data_frequency: str = None
+    capital_base: float = None
+    bundle: str = US_FREE_STOCK_BUNDLE
+    start_date: date = None
+    end_date: date = None
+    progress: str = "M"
+    params: Dict[str, Any] = None
+    filepath_or_buffer: Any
 
 class BacktestResults(BaseModel):
     """Results from a backtest execution.

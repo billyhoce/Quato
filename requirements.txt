@@ -1,3 +1,6 @@
 pydantic
 quantrocket-client
+dotenv
+
+# For jupyter notebook testing
 ipykernel

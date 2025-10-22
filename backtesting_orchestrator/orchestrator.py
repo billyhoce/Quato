@@ -3,6 +3,7 @@
 This module orchestrates the execution and analysis of strategy backtests.
 """
 import logging
+import os
 
 from quantrocket import zipline
 from typing import Dict, Any, Optional, List
@@ -16,15 +17,14 @@ class BacktestingOrchestrator:
     execution, performance analysis, and result reporting.
     """
     
-    def __init__(self, quantrocket_url: str) -> None:
+    def __init__(self) -> None:
         """Initialize the backtesting orchestrator.
         
         Args:
             quantrocket_url: URL of the QuantRocket instance (if None, uses default)
         """
-        if not quantrocket_url:
-            raise ValueError("QuantRocket URL must be provided.")
-        self.quantrocket_url = quantrocket_url
+        if os.environ.get("HOUSTON_URL") is None:
+            raise ValueError("QuantRocket URL must be set in the environment as 'HOUSTON_URL'.")
         self.results_cache: Dict[str, BacktestResults] = {}
 
 
@@ -58,34 +58,18 @@ class BacktestingOrchestrator:
             logging.info(f"Ingestion of {US_FREE_STOCK_BUNDLE} completed.")
         
  
-    def run_backtest(
-        self,
-        strategy_code: str,
-        config: BacktestConfig
-    ) -> BacktestResults:
+    def run_backtest(self, strategy_code: str, config: BacktestConfig) -> None:
         """Execute a strategy backtest.
         
         Args:
-            strategy_code: The strategy code to backtest
+            strategy_code: The path to the strategy code to backtest
             config: Backtest configuration
             
         Returns:
-            BacktestResults object containing performance metrics
+            None
         """
-        # Placeholder implementation
-        print(f"Running backtest for strategy {config.strategy_id}")
-        results = BacktestResults(
-            strategy_id=config.strategy_id,
-            total_return=0.0,
-            sharpe_ratio=0.0,
-            max_drawdown=0.0,
-            win_rate=0.0,
-            num_trades=0,
-            execution_time=0.0,
-            metrics={}
-        )
-        self.results_cache[config.strategy_id] = results
-        return results
+        zipline.backtest(strategy_code, config.model_dump(exclude_unset=True))
+
     
     def analyze_results(self, results: BacktestResults) -> Dict[str, Any]:
         """Analyze backtest results for insights.
