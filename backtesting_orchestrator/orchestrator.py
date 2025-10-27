@@ -4,6 +4,8 @@ This module orchestrates the execution and analysis of strategy backtests.
 """
 import logging
 import os
+import base64
+import requests
 
 from quantrocket import zipline
 from typing import Dict, Any, Optional, List
@@ -56,19 +58,108 @@ class BacktestingOrchestrator:
                 logging.info("Waiting for ingestion to complete...")
                 time.sleep(20)
             logging.info(f"Ingestion of {US_FREE_STOCK_BUNDLE} completed.")
+
+
+    def upload_file_to_github(self, file_path: str, commit_message: str) -> None:
+        """Upload a file to a GitHub repository using the GitHub API.
         
- 
-    def run_backtest(self, strategy_code: str, config: BacktestConfig) -> None:
+        Args:
+            file_path: The path to the file to upload
+            commit_message: The commit message for the upload
+        """
+        with open(file_path, "rb") as f:
+            content_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+        response = requests.put(
+            f"https://api.github.com/repos/{os.getenv('REPO_PATH')}/contents/{os.path.basename(file_path)}",
+            headers={
+                "Authorization": f"BEARER {os.getenv('GITHUB_TOKEN')}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28"
+            },
+            json={
+                "message": commit_message,
+                "content": content_b64
+            }
+        )
+
+        if response.status_code not in [200, 201]:
+            raise Exception(f"Failed to upload file to GitHub: {response.status_code} - {response.text}")    
+
+
+    def pull_files_from_github_to_quantrocket(
+        repo: str,
+        branch: Optional[str] = None,
+        replace: Optional[bool] = None,
+        skip_existing: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        Clone files from a Git repository by calling QuantRocket's /codeload/repo endpoint.
+        Args:
+            repo: The repository name or URL
+            branch: Optional branch to clone
+            replace: Whether to replace existing files (mutually exclusive with skip_existing)
+            skip_existing: Whether to skip existing files (mutually exclusive with replace)
+        """
+        houston_url = os.getenv("HOUSTON_URL")
+        username = os.getenv("HOUSTON_USERNAME")
+        password = os.getenv("HOUSTON_PASSWORD")
+
+        if not houston_url:
+            raise ValueError("HOUSTON_URL environment variable is not set.")
+
+        url = houston_url.rstrip('/') + '/codeload/repo'
+
+        params = {"repo": repo}
+        if branch is not None:
+            params["branch"] = branch
+        if replace is not None:
+            params["replace"] = str(replace)
+        if skip_existing is not None:
+            params["skip_existing"] = str(skip_existing)
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        auth = (username, password) if username and password else None
+
+        response = requests.post(url, params=params, headers=headers, auth=auth)
+
+        try:
+            response.raise_for_status()
+        except requests.HTTPError:
+            raise requests.HTTPError(f"{response.status_code} {response.reason}: {response.text[:2000]}")
+
+
+    def load_strategy(self, strategy_path: str) -> None:
+        """Load strategy code into quantrocket using commit-pull workflow
+        
+        Args:
+            strategy_path: The file path to the strategy code
+        """
+        self.upload_file_to_github(
+            file_path=strategy_path,
+            commit_message=f"Uploading strategy {os.path.basename(strategy_path)}"
+        )
+        self.pull_files_from_github_to_quantrocket(
+            repo=os.getenv("REPO_PATH"),
+            skip_existing=True
+        )
+
+
+    def run_backtest(self, strategy_filename: str, config: BacktestConfig) -> None:
         """Execute a strategy backtest.
         
         Args:
-            strategy_code: The path to the strategy code to backtest
+            strategy_filename: The path to the strategy code to backtest
             config: Backtest configuration
             
         Returns:
             None
         """
-        zipline.backtest(strategy_code, config.model_dump(exclude_unset=True))
+        self.load_strategy(strategy_filename)
+        zipline.backtest(strategy_filename, config.model_dump(exclude_unset=True))
 
     
     def analyze_results(self, results: BacktestResults) -> Dict[str, Any]:
