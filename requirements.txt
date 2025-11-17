@@ -1,40 +1,7 @@
-# Core dependencies
-openai
-anthropic
-python-dotenv
-
-# QuantRocket
-quantrocket-client
-
-# Data processing
-pandas
-numpy0
-
-# Backtesting and analysis
-backtrader
-zipline-reloaded
-pyfolio-reloaded
-
-# Visualization
-matplotlib
-seaborn
-plotly
-
-# Type checking and validation
 pydantic
-typing-extensions
+quantrocket-client
+dotenv
+GitPython
 
-# Utilities
-requests
-aiohttp
-python-dateutil
-
-# Testing (optional)
-pytest
-pytest-asyncio
-pytest-cov
-
-# Development tools (optional)
-black
-flake8
-mypy
+# For jupyter notebook testing
+ipykernel
