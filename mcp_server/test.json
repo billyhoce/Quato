@@ -1,0 +1,105 @@
+{
+    "data-object": {
+        "zipline-api-bardata": "temp"
+    },
+    "context-object": {
+        "zipline-api-context": "temp"
+    },
+    "scheduling-functions": {
+        "zipline-api-schedule-function": "temp",
+        "zipline-api-date-rules": "temp",
+        "zipline-api-time-rules": "temp"
+    },
+    "simulation-date": {
+        "zipline-api-get-datetime": "temp"
+    },
+    "ordering": {
+        "zipline-api-order": "temp",
+        "zipline-api-order-value": "temp",
+        "zipline-api-order-percent": "temp",
+        "zipline-api-order-target": "temp",
+        "zipline-api-order-target-value": "temp",
+        "zipline-api-order-target-percent": "temp"
+    },
+    "execution-styles": {
+        "zipline-finance-execution-marketorder": "temp",
+        "zipline-finance-execution-limitorder": "temp",
+        "zipline-finance-execution-stoporder": "temp",
+        "zipline-finance-execution-stoplimitorder": "temp",
+        "zipline-finance-execution-marketoncloseorder": "temp",
+        "zipline-finance-execution-limitoncloseorder": "temp",
+        "zipline-finance-execution-marketonopenorder": "temp",
+        "zipline-finance-execution-limitonopenorder": "temp"
+    },
+    "order-management": {
+        "zipline-api-get-order": "temp",
+        "zipline-api-get-open-orders": "temp",
+        "zipline-api-cancel-order": "temp",
+        "zipline-finance-order-order": "temp"
+    },
+    "order-cancellation-policies": {
+        "zipline-api-set-cancel-policy": "temp",
+        "zipline-api-eodcancel": "temp",
+        "zipline-api-nevercancel": "temp"
+    },
+    "portfolio-and-account": {
+        "zipline-protocol-portfolio": "temp",
+        "zipline-protocol-position": "temp",
+        "zipline-protocol-account": "temp",
+        "zipline-api-capital-change": "temp"
+    },
+    "assets": {
+        "zipline-api-sid": "temp",
+        "zipline-api-symbol": "temp",
+        "zipline-api-continuous-future": "temp",
+        "zipline-assets-asset": "temp",
+        "zipline-assets-equity": "temp",
+        "zipline-assets-future": "temp"
+    },
+    "trading-controls": {
+        "zipline-api-set-asset-restrictions": "temp",
+        "zipline-finance-asset-restrictions-staticrestrictions": "temp",
+        "zipline-api-set-long-only": "temp",
+        "zipline-api-set-max-leverage": "temp",
+        "zipline-api-set-max-order-count": "temp",
+        "zipline-api-set-max-order-size": "temp",
+        "zipline-api-set-max-position-size": "temp"
+    },
+    "benchmarks": {
+        "zipline-api-set-benchmark": "temp"
+    },
+    "commission-models": {
+        "zipline-api-set-commission": "temp",
+        "zipline-finance-commission-commissionmodel": "temp",
+        "zipline-finance-commission-pershare": "temp",
+        "zipline-finance-commission-pertrade": "temp",
+        "zipline-finance-commission-perdollar": "temp",
+        "zipline-finance-commission-percontract": "temp",
+        "zipline-finance-commission-perfuturetrade": "temp"
+    },
+    "slippage-models": {
+        "zipline-api-set-slippage": "temp",
+        "zipline-finance-slippage-slippagemodel": "temp",
+        "zipline-finance-slippage-fixedslippage": "temp",
+        "zipline-finance-slippage-fixedbasispointsslippage": "temp",
+        "zipline-finance-slippage-volumeshareslippage": "temp",
+        "zipline-finance-slippage-volatilityvolumeshare": "temp"
+    },
+    "fee-models": {
+        "zipline-api-set-margin-interest": "temp",
+        "zipline-api-set-management-fee": "temp",
+        "zipline-api-set-performance-fee": "temp",
+        "zipline-api-set-borrow-fees-provider": "temp"
+    },
+    "pipeline-in-algorithm": {
+        "zipline-api-attach-pipeline": "temp",
+        "zipline-api-pipeline-output": "temp"
+    },
+    "recording-variables": {
+        "zipline-api-record": "temp"
+    },
+    "zipline-live-trading": {
+        "zipline-api-set-realtime-db": "temp",
+        "zipline-api-get-environment": "temp"
+    }
+}

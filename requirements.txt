@@ -1,7 +1,12 @@
+# Backtesting orchestrator
 pydantic
 quantrocket-client
 dotenv
 GitPython
 
-# For jupyter notebook testing
+# MCP dependencies
+mcp
+
+# For jupyter notebook testing and web scraping in parsing API specs
 ipykernel
+beautifulsoup4
