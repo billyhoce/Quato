@@ -1,0 +1,1046 @@
+{
+  "docs/zipline/data-object/bardata": {
+    "type": "class",
+    "method_signature": "zipline.api.BarData(data_portal, simulation_dt_func, data_frequency, exchange_calendar, restrictions)",
+    "parameters": {},
+    "attributes": {},
+    "methods": {
+      "current(assets, fields)": "Returns the \u201ccurrent\u201d value of the given fields for the given assets at the current simulation time. Parameters: assets (zipline.assets.Asset or iterable of zipline.assets.Asset) \u2013 The asset(s) for which data is requested. fields (str or iterable[str].) \u2013 Requested data field(s). Valid field names are: \u201cprice\u201d, \u201clast_traded\u201d, \u201copen\u201d, \u201chigh\u201d, \u201clow\u201d, \u201cclose\u201d, and \u201cvolume\u201d. Returns: current_value \u2013 See notes below. Return type: Scalar, pandas Series, or pandas DataFrame. Notes The return type of this function depends on the types of its inputs: If a single asset and a single field are requested, the returned value is a scalar (either a float or a pd.Timestamp depending on the field). If a single asset and a list of fields are requested, the returned value is a pd.Series whose indices are the requested fields. If a list of assets and a single field are requested, the returned value is a pd.Series whose indices are the assets. If a list of assets and a list of fields are requested, the returned value is a pd.DataFrame. The columns of the returned frame will be the requested fields, and the index of the frame will be the requested assets. The values produced for fields are as follows: Requesting \u201cprice\u201d produces the last known close price for the asset, forward-filled from an earlier minute if there is no trade this minute. If there is no last known value (either because the asset has never traded, or because it has delisted) NaN is returned. If a value is found, and we had to cross an adjustment boundary (split, dividend, etc) to get it, the value is adjusted to the current simulation time before being returned. Requesting \u201copen\u201d, \u201chigh\u201d, \u201clow\u201d, or \u201cclose\u201d produces the open, high, low, or close for the current minute. If no trades occurred this minute, NaN is returned. Requesting \u201cvolume\u201d produces the trade volume for the current minute. If no trades occurred this minute, 0 is returned. Requesting \u201clast_traded\u201d produces the datetime of the last minute in which the asset traded, even if the asset has stopped trading. If there is no last known value, pd.NaT is returned. If the current simulation time is not a valid market time for an asset, we use the most recent market close instead. Examples Get the latest price for AAPL (returns a scalar): >>> aapl = algo.sid(\"FIBBG000B9XRY4\") >>> current_price = data.current(aapl, \"price\")",
+      "current_chain(continuous_future)": "Returns the current futures chain as of the simulation date. Parameters: continuous_future (zipline.assets.ContinuousFuture) \u2013 the continuous future for which to provide the current chain Returns: future_chain \u2013 A list of active futures, where the first index is the current contract specified by the continuous future definition, the second is the next upcoming contract and so on. Return type: list of zipline.assets.Future",
+      "can_trade(assets)": "For the given asset or iterable of assets, returns True if all of the following are true: The asset is alive for the session of the current simulation time (if current simulation time is not a market minute, we use the next session). The asset\u2019s exchange is open at the current simulation time or at the simulation calendar\u2019s next market minute. There is a known last price for the asset. Parameters: assets (zipline.assets.Asset or iterable of zipline.assets.Asset) \u2013 Asset(s) for which tradability should be determined. Notes The second condition above warrants some further explanation: If the asset\u2019s exchange calendar is identical to the simulation calendar, then this condition always returns True. If there are market minutes in the simulation calendar outside of this asset\u2019s exchange\u2019s trading hours (for example, if the simulation is running on the CMES calendar but the asset is MSFT, which trades on the NYSE), during those minutes, this condition will return False (for example, 3:15 am Eastern on a weekday, during which the CMES is open but the NYSE is closed). Returns: can_trade \u2013 Bool or series of bools indicating whether the requested asset(s) can be traded in the current minute. Return type: bool or pd.Series[bool]",
+      "is_stale(assets)": "For the given asset or iterable of assets, returns True if the asset is alive and there is no trade data for the current simulation time. If the asset has never traded, returns False. If the current simulation time is not a valid market time, we use the current time to check if the asset is alive, but we use the last market minute/day for the trade data check. Parameters: assets (zipline.assets.Asset or iterable of zipline.assets.Asset) \u2013 Asset(s) for which staleness should be determined. Returns: is_stale \u2013 Bool or series of bools indicating whether the requested asset(s) are stale. Return type: bool or pd.Series[bool]",
+      "history(assets, fields, bar_count, frequency)": "Returns a trailing window of length bar_count containing data for the given assets, fields, and frequency. Returned data is adjusted for splits, dividends, and mergers as of the current simulation time. The semantics for missing data are identical to the ones described in the notes for current(). Parameters: assets (zipline.assets.Asset or iterable of zipline.assets.Asset) \u2013 The asset(s) for which data is requested. fields (string or iterable of string.) \u2013 Requested data field(s). Valid field names are: \u201cprice\u201d, \u201clast_traded\u201d, \u201copen\u201d, \u201chigh\u201d, \u201clow\u201d, \u201cclose\u201d, and \u201cvolume\u201d. bar_count (int) \u2013 Number of data observations requested. frequency (str) \u2013 String indicating whether to load daily or minutely data observations. Pass \u20181m\u2019 for minutely data, \u20181d\u2019 for daily data. Returns: history \u2013 See notes below. Return type: pd.Series or pd.DataFrame Notes The return type of this function depends on the types of assets and fields: If a single asset and a single field are requested, the returned value is a pd.Series of length bar_count whose index is pd.DatetimeIndex. If a single asset and multiple fields are requested, the returned value is a pd.DataFrame with shape (bar_count, len(fields)). The frame\u2019s index will be a pd.DatetimeIndex, and its columns will be fields. If multiple assets and a single field are requested, the returned value is a pd.DataFrame with shape (bar_count, len(assets)). The frame\u2019s index will be a pd.DatetimeIndex, and its columns will be assets. If multiple assets and multiple fields are requested, the returned value is a pd.DataFrame with shape (len(fields) * bar_count, len(assets)). The frame\u2019s index will have be a pd.MultiIndex in which level 0 will contain fields level 1 will be a pd.DatetimeIndex. The columns will be assets. If the current simulation time is not a valid market time, we use the last market close instead. Examples Get prices for the past 30 minutes for multiple assets (returns a DataFrame): >>> minute_closes = data.history(assets, \"close\", 30, \"1m\") Get the previous session\u2019s closing price for a single asset: >>> spy = algo.sid(\"FIBBG000BDTBL9\") >>> spy_prior_close = data.history(spy, \"close\", 2, \"1d\").iloc[0]"
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Provides methods for accessing minutely and daily price/volume data from Algorithm API functions. Also provides utility methods to determine if an asset is alive, and if it has recent trade data. An instance of this object is passed as data to handle_data() and before_trading_start(). Methods: current(assets, field)\n\nReturns the \u201ccurrent\u201d value of the given fields for the given assets at the current simulation time.\n\nhistory(assets, fields, bar_count, frequency)\n\nReturns a trailing window of length bar_count containing data for the given assets, fields, and frequency.\n\ncan_trade(assets)\n\nReturns True if the asset is alive, the exchange is open, and there is a known last prices.\n\nis_stale(assets)\n\nReturns True if the asset is alive but the last price is stale.\n\ncurrent_chain(continuous_future)\n\nReturns the current futures chain as of the simulation date. See the individual methods for more details."
+  },
+  "docs/zipline/context-object/context": {
+    "type": "class",
+    "method_signature": "zipline.api.Context",
+    "parameters": {},
+    "attributes": {
+      "portfolio": "The current portfolio. Type: zipline.protocol.Portfolio",
+      "account": "The current account. Type: zipline.protocol.Account",
+      "recorded_vars": "A copy of the variables that have been recorded using zipline.api.record(). Type: dict"
+    },
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Save a variable to the context object:": "import zipline.api as algo\n\ndef initialize(context: algo.Context): context.my_var = 1",
+      "Print the current portfolio value and the current positions:": "def handle_data(context: algo.Context, data: algo.BarData):\n print(context.portfolio.portfolio_value)\n for asset, position in context.portfolio.positions.items(): print(asset, position.amount)"
+    },
+    "description": "The context object is passed to initialize(), handle_data(), before_trading_start(), and scheduled functions, and provides access to the account and portfolio as well as any custom variables saved by the user."
+  },
+  "docs/zipline/scheduling-functions/schedule-function": {
+    "type": "function",
+    "method_signature": "zipline.api.schedule_function(func, date_rule=None, time_rule=None, half_days=True)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "func (callable)": "The function to execute when the rule is triggered. func should have the same signature as handle_data.",
+      "date_rule (zipline.utils.events.EventRule, optional)": "Rule for the dates on which to execute func. If not passed, the function will run every trading day.",
+      "time_rule (zipline.utils.events.EventRule, optional)": "Rule for the time at which to execute func. If not passed, the function will execute at the end of the first market minute of the day.",
+      "half_days (bool, optional)": "Should this rule fire on half days? Default is True."
+    },
+    "notes": [],
+    "examples": {
+      "Schedule a function called rebalance to run every trading day 30 minutes after the open:": "import zipline.api as algo\nalgo.schedule_function( rebalance, algo.date_rules.every_day(), algo.time_rules.market_open(minutes=30))"
+    },
+    "description": "Schedule a function to be called repeatedly in the future."
+  },
+  "docs/zipline/scheduling-functions/date-rules": {
+    "type": "class",
+    "method_signature": "zipline.api.date_rule",
+    "parameters": {},
+    "attributes": {},
+    "methods": {
+      "static every_day()": "Create a rule that triggers every day. Returns: rule Return type: zipline.utils.events.EventRule",
+      "static month_start(days_offset=0, months=None)": "Create a rule that triggers a fixed number of trading days after the start of each month. Parameters: days_offset (int, optional) \u2013 Number of trading days to wait before triggering each month. Default is 0, i.e., trigger on the first trading day of the month. months (list[int], optional) \u2013 List of months to trigger (1-12). If not passed, trigger on every month. Returns: rule Return type: zipline.utils.events.EventRule Examples Trigger on the 3rd trading day of every month: algo.schedule_function( algo.date_rules.month_start(days_offset=2), ... ) Trigger quarterly on the first trading day of the month: algo.schedule_function( algo.date_rules.month_start(months=[1, 4, 7, 10]), ... )",
+      "static month_end(days_offset=0, months=None)": "Create a rule that triggers a fixed number of trading days before the end of each month. Parameters: days_offset (int, optional) \u2013 Number of trading days prior to month end to trigger. Default is 0, i.e., trigger on the last day of the month. months (list[int], optional) \u2013 List of months to trigger (1-12). If not passed, trigger on every month. Returns: rule Return type: zipline.utils.events.EventRule Examples Trigger on the last trading day of every month: algo.schedule_function( algo.date_rules.month_end(), ... ) Trigger quarterly on the 2nd to last trading day of the month: algo.schedule_function( algo.date_rules.month_end(days_offset=1, months=[1, 4, 7, 10]), ... )",
+      "static week_start(days_offset=0)": "Create a rule that triggers a fixed number of trading days after the start of each week. Parameters: days_offset (int, optional) \u2013 Number of trading days to wait before triggering each week. Default is 0, i.e., trigger on the first trading day of the week.",
+      "static week_end(days_offset=0)": "Create a rule that triggers a fixed number of trading days before the end of each week. Parameters: days_offset (int, optional) \u2013 Number of trading days prior to week end to trigger. Default is 0, i.e., trigger on the last trading day of the week."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Factories for date-based schedule_function() rules."
+  },
+  "docs/zipline/scheduling-functions/time-rules": {
+    "type": "class",
+    "method_signature": "zipline.api.time_rule",
+    "parameters": {},
+    "attributes": {},
+    "methods": {
+      "static market_open(offset=None, hours=None, minutes=None)": "Create a rule that triggers at a fixed offset from market open. The offset can be specified either as a datetime.timedelta, or as a number of hours and minutes. Parameters: offset (datetime.timedelta, optional) \u2013 If passed, the offset from market open at which to trigger. Must be at least 1 minute. hours (int, optional) \u2013 If passed, number of hours to wait after market open. minutes (int, optional) \u2013 If passed, number of minutes to wait after market open. Returns: rule Return type: zipline.utils.events.EventRule Notes If no arguments are passed, the default offset is one minute after market open. If offset is passed, hours and minutes must not be passed. Conversely, if either hours or minutes are passed, offset must not be passed.",
+      "static market_close(offset=None, hours=None, minutes=None)": "Create a rule that triggers at a fixed offset from market close. The offset can be specified either as a datetime.timedelta, or as a number of hours and minutes. Parameters: offset (datetime.timedelta, optional) \u2013 If passed, the offset from market close at which to trigger. Must be at least 1 minute. hours (int, optional) \u2013 If passed, number of hours to wait before market close. minutes (int, optional) \u2013 If passed, number of minutes to wait before market close. Returns: rule Return type: zipline.utils.events.EventRule Notes If no arguments are passed, the default offset is one minute before market close. If offset is passed, hours and minutes must not be passed. Conversely, if either hours or minutes are passed, offset must not be passed.",
+      "static every_minute()": "Create a rule that always triggers."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Factories for time-based schedule_function() rules."
+  },
+  "docs/zipline/simulation-date/get-datetime": {
+    "type": "function",
+    "method_signature": "zipline.api.get_datetime(tz=None)",
+    "returns": "dt \u2013 The current simulation datetime converted to tz. Return type: datetime",
+    "raises": "",
+    "parameters": {
+      "tz (tzinfo or str, optional)": "The timezone to return the datetime in. This defaults to utc."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Get the current simulation datetime."
+  },
+  "docs/zipline/ordering/order": {
+    "type": "function",
+    "method_signature": "zipline.api.order(asset, amount, limit_price=None, stop_price=None, style=None)",
+    "returns": "order_id \u2013 The unique identifier for this order, or None if no order was placed. Return type: str or None",
+    "raises": "",
+    "parameters": {
+      "asset (Asset)": "The asset that this order is for.",
+      "amount (int)": "The amount of shares to order. If amount is positive, this is the number of shares to buy or cover. If amount is negative, this is the number of shares to sell or short.",
+      "limit_price (float, optional)": "The limit price for the order.",
+      "stop_price (float, optional)": "The stop price for the order.",
+      "style (zipline.api.execution.ExecutionStyle, optional)": "The execution style for the order."
+    },
+    "notes": [
+      "The limit_price and stop_price arguments provide shorthands for passing common execution styles. Passing limit_price=N is equivalent to style=LimitOrder(N). Similarly, passing stop_price=M is equivalent to style=StopOrder(M), and passing limit_price=N and stop_price=M is equivalent to style=StopLimitOrder(N, M). It is an error to pass both a style and limit_price or stop_price."
+    ],
+    "examples": {},
+    "description": "Place an order."
+  },
+  "docs/zipline/ordering/order-value": {
+    "type": "function",
+    "method_signature": "zipline.api.order_value(asset, value, limit_price=None, stop_price=None, style=None)",
+    "returns": "order_id \u2013 The unique identifier for this order. Return type: str",
+    "raises": "",
+    "parameters": {
+      "asset (Asset)": "The asset that this order is for.",
+      "value (float)": "Amount of value of asset to be transacted. The number of shares bought or sold will be equal to value / current_price. value > 0 :: Buy/Cover value < 0 :: Sell/Short",
+      "limit_price (float, optional)": "The limit price for the order.",
+      "stop_price (float, optional)": "The stop price for the order.",
+      "style (zipline.api.execution.ExecutionStyle)": "The execution style for the order."
+    },
+    "notes": [
+      "See zipline.api.order() for more information about limit_price, stop_price, and style"
+    ],
+    "examples": {},
+    "description": "Place an order for a fixed amount of money. Equivalent to order(asset, value / data.current(asset, 'price'))."
+  },
+  "docs/zipline/ordering/order-percent": {
+    "type": "function",
+    "method_signature": "zipline.api.order_percent(asset, percent, limit_price=None, stop_price=None, style=None)",
+    "returns": "order_id \u2013 The unique identifier for this order. Return type: str",
+    "raises": "",
+    "parameters": {
+      "asset (Asset)": "The asset that this order is for.",
+      "percent (float)": "The percentage of the portfolio value to allocate to asset. This is specified as a decimal, for example: 0.50 means 50%.",
+      "limit_price (float, optional)": "The limit price for the order.",
+      "stop_price (float, optional)": "The stop price for the order.",
+      "style (zipline.api.execution.ExecutionStyle)": "The execution style for the order."
+    },
+    "notes": [
+      "See zipline.api.order() for more information about limit_price, stop_price, and style"
+    ],
+    "examples": {},
+    "description": "Place an order in the specified asset corresponding to the given percent of the current portfolio value."
+  },
+  "docs/zipline/ordering/order-target": {
+    "type": "function",
+    "method_signature": "zipline.api.order_target(asset, target, limit_price=None, stop_price=None, style=None)",
+    "returns": "order_id \u2013 The unique identifier for this order. Return type: str",
+    "raises": "",
+    "parameters": {
+      "asset (Asset)": "The asset that this order is for.",
+      "target (int)": "The desired number of shares of asset.",
+      "limit_price (float, optional)": "The limit price for the order.",
+      "stop_price (float, optional)": "The stop price for the order.",
+      "style (zipline.api.execution.ExecutionStyle)": "The execution style for the order."
+    },
+    "notes": [
+      "order_target does not take into account any open orders. For example:",
+      "order_target(sid('A'), 10) order_target(sid('A'), 10)",
+      "This code will result in 20 shares of sid('A') because the first call to order_target will not have been filled when the second order_target call is made.",
+      "See zipline.api.order() for more information about limit_price, stop_price, and style"
+    ],
+    "examples": {},
+    "description": "Place an order to adjust a position to a target number of shares. If the position doesn\u2019t already exist, this is equivalent to placing a new order. If the position does exist, this is equivalent to placing an order for the difference between the target number of shares and the current number of shares."
+  },
+  "docs/zipline/ordering/order-target-value": {
+    "type": "function",
+    "method_signature": "zipline.api.order_target_value(asset, target, limit_price=None, stop_price=None, style=None)",
+    "returns": "order_id \u2013 The unique identifier for this order. Return type: str",
+    "raises": "",
+    "parameters": {
+      "asset (Asset)": "The asset that this order is for.",
+      "target (float)": "The desired total value of asset.",
+      "limit_price (float, optional)": "The limit price for the order.",
+      "stop_price (float, optional)": "The stop price for the order.",
+      "style (zipline.api.execution.ExecutionStyle)": "The execution style for the order."
+    },
+    "notes": [
+      "order_target_value does not take into account any open orders. For example:",
+      "order_target_value(sid('A'), 10) order_target_value(sid('A'), 10)",
+      "This code will result in 20 dollars of sid('A') because the first call to order_target_value will not have been filled when the second order_target_value call is made.",
+      "See zipline.api.order() for more information about limit_price, stop_price, and style"
+    ],
+    "examples": {},
+    "description": "Place an order to adjust a position to a target value. If the position doesn\u2019t already exist, this is equivalent to placing a new order. If the position does exist, this is equivalent to placing an order for the difference between the target value and the current value. If the Asset being ordered is a Future, the \u2018target value\u2019 calculated is actually the target exposure, as Futures have no \u2018value\u2019."
+  },
+  "docs/zipline/ordering/order-target-percent": {
+    "type": "function",
+    "method_signature": "zipline.api.order_target_percent(asset, target, limit_price=None, stop_price=None, style=None)",
+    "returns": "order_id \u2013 The unique identifier for this order. Return type: str",
+    "raises": "",
+    "parameters": {
+      "asset (Asset)": "The asset that this order is for.",
+      "target (float)": "The desired percentage of the portfolio value to allocate to asset. This is specified as a decimal, for example: 0.50 means 50%.",
+      "limit_price (float, optional)": "The limit price for the order.",
+      "stop_price (float, optional)": "The stop price for the order.",
+      "style (zipline.api.execution.ExecutionStyle)": "The execution style for the order."
+    },
+    "notes": [
+      "order_target_value does not take into account any open orders. For example:",
+      "order_target_percent(sid('A'), 10) order_target_percent(sid('A'), 10)",
+      "This code will result in 20% of the portfolio being allocated to sid(\u2018A\u2019) because the first call to order_target_percent will not have been filled when the second order_target_percent call is made.",
+      "See zipline.api.order() for more information about limit_price, stop_price, and style"
+    ],
+    "examples": {},
+    "description": "Place an order to adjust a position to a target percent of the current portfolio value. If the position doesn\u2019t already exist, this is equivalent to placing a new order. If the position does exist, this is equivalent to placing an order for the difference between the target percent and the current percent."
+  },
+  "docs/zipline/execution-styles/execution-marketorder": {
+    "type": "class",
+    "method_signature": "zipline.finance.execution.MarketOrder(exchange=None, order_params=None)",
+    "parameters": {
+      "exchange (str, optional)": "The exchange to route the order to. Only applicable to live trading and to certain brokers.",
+      "order_params (dict, optional)": "Additional broker-specific order parameters to use in live trading. Ignored in backtests."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Place a SMART-routed market order using the Adaptive algorithm (Interactive Brokers):": "style = MarketOrder(exchange=\"SMART\", order_params={\"AlgoStrategy\": \"Adaptive\"})\nalgo.order(asset, 100, style=style)"
+    },
+    "description": "Execution style for orders to be filled at current market price. This is the default for orders placed with order()."
+  },
+  "docs/zipline/execution-styles/execution-limitorder": {
+    "type": "class",
+    "method_signature": "zipline.finance.execution.LimitOrder(limit_price, asset=None, exchange=None, order_params=None)",
+    "parameters": {
+      "limit_price (float)": "Maximum price for buys, or minimum price for sells, at which the order should be filled.",
+      "exchange (str, optional)": "The exchange to route the order to. Only applicable to live trading and to certain brokers.",
+      "order_params (dict, optional)": "Additional broker-specific order parameters to use in live trading. Ignored in backtests."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Place a limit order:": "algo.order(asset, 100, style=LimitOrder(10.0))"
+    },
+    "description": "Execution style for orders to be filled at a price equal to or better than a specified limit price."
+  },
+  "docs/zipline/execution-styles/execution-stoporder": {
+    "type": "class",
+    "method_signature": "zipline.finance.execution.StopOrder(stop_price, asset=None, exchange=None, order_params=None)",
+    "parameters": {
+      "stop_price (float)": "Price threshold at which the order should be placed. For sells, the order will be placed if market price falls below this value. For buys, the order will be placed if market price rises above this value.",
+      "exchange (str, optional)": "The exchange to route the order to. Only applicable to live trading and to certain brokers.",
+      "order_params (dict, optional)": "Additional broker-specific order parameters to use in live trading. Ignored in backtests."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Execution style representing a market order to be placed if market price reaches a threshold."
+  },
+  "docs/zipline/execution-styles/execution-stoplimitorder": {
+    "type": "class",
+    "method_signature": "zipline.finance.execution.StopLimitOrder(limit_price, stop_price, asset=None, exchange=None, order_params=None)",
+    "parameters": {
+      "limit_price (float)": "Maximum price for buys, or minimum price for sells, at which the order should be filled, if placed.",
+      "stop_price (float)": "Price threshold at which the order should be placed. For sells, the order will be placed if market price falls below this value. For buys, the order will be placed if market price rises above this value.",
+      "exchange (str, optional)": "The exchange to route the order to. Only applicable to live trading and to certain brokers.",
+      "order_params (dict, optional)": "Additional broker-specific order parameters to use in live trading. Ignored in backtests."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Execution style representing a limit order to be placed if market price reaches a threshold."
+  },
+  "docs/zipline/execution-styles/execution-marketoncloseorder": {
+    "type": "class",
+    "method_signature": "zipline.finance.execution.MarketOnCloseOrder(exchange=None, order_params=None)",
+    "parameters": {
+      "exchange (str, optional)": "The exchange to route the order to. Only applicable to live trading and to certain brokers.",
+      "order_params (dict, optional)": "Additional broker-specific order parameters to use in live trading. Ignored in backtests."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Place a market-on-close order:": "algo.order(asset, 100, style=MarketOnCloseOrder())"
+    },
+    "description": "Execution style for orders to be filled at the close price of the asset\u2019s last trade on the day the order is filled."
+  },
+  "docs/zipline/execution-styles/execution-limitoncloseorder": {
+    "type": "class",
+    "method_signature": "zipline.finance.execution.LimitOnCloseOrder(limit_price, asset=None, exchange=None, order_params=None)",
+    "parameters": {
+      "limit_price (float)": "Maximum price for buys, or minimum price for sells, at which the order should be filled.",
+      "exchange (str, optional)": "The exchange to route the order to. Only applicable to live trading and to certain brokers.",
+      "order_params (dict, optional)": "Additional broker-specific order parameters to use in live trading. Ignored in backtests."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Place a limit-on-close order:": "algo.order(asset, 100, style=LimitOnCloseOrder(10.0))"
+    },
+    "description": "Execution style for orders to be filled at the close price of the asset\u2019s last trade on the day the order is filled, at a price equal to or better than a specified limit price."
+  },
+  "docs/zipline/execution-styles/execution-marketonopenorder": {
+    "type": "class",
+    "method_signature": "zipline.finance.execution.MarketOnOpenOrder(exchange=None, order_params=None)",
+    "parameters": {
+      "exchange (str, optional)": "The exchange to route the order to. Only applicable to live trading and to certain brokers.",
+      "order_params (dict, optional)": "Additional broker-specific order parameters to use in live trading. Ignored in backtests."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Place a market-on-open order:": "algo.order(asset, 100, style=MarketOnOpenOrder())"
+    },
+    "description": "Execution style for orders to be filled at the open price of the asset\u2019s first trade on the day the order is filled."
+  },
+  "docs/zipline/execution-styles/execution-limitonopenorder": {
+    "type": "class",
+    "method_signature": "zipline.finance.execution.LimitOnOpenOrder(limit_price, asset=None, exchange=None, order_params=None)",
+    "parameters": {
+      "limit_price (float)": "Maximum price for buys, or minimum price for sells, at which the order should be filled.",
+      "exchange (str, optional)": "The exchange to route the order to. Only applicable to live trading and to certain brokers.",
+      "order_params (dict, optional)": "Additional broker-specific order parameters to use in live trading. Ignored in backtests."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Place a limit-on-open order:": "algo.order(asset, 100, style=LimitOnOpenOrder(10.0))"
+    },
+    "description": "Execution style for orders to be filled at the open price of the asset\u2019s first trade on the day the order is filled, at a price equal to or better than a specified limit price."
+  },
+  "docs/zipline/order-management/get-order": {
+    "type": "function",
+    "method_signature": "zipline.api.get_order(order_id)",
+    "returns": "order \u2013 The order object. Return type: Order",
+    "raises": "",
+    "parameters": {
+      "order_id (str)": "The unique identifier for the order."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Lookup an order based on the order id returned from one of the order functions."
+  },
+  "docs/zipline/order-management/get-open-orders": {
+    "type": "function",
+    "method_signature": "zipline.api.get_open_orders(asset=None)",
+    "returns": "open_orders \u2013 If no asset is passed this will return a dict mapping Assets to a list containing all the open orders for the asset. If an asset is passed then this will return a list of the open orders for this asset. Return type: dict[list[Order]] or list[Order]",
+    "raises": "",
+    "parameters": {
+      "asset (Asset)": "If passed and not None, return only the open orders for the given asset instead of all open orders."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Retrieve all of the current open orders."
+  },
+  "docs/zipline/order-management/cancel-order": {
+    "type": "function",
+    "method_signature": "zipline.api.cancel_order(order_param)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "order_param (str or Order)": "The order_id or order object to cancel."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Cancel an open order."
+  },
+  "docs/zipline/order-management/order-order": {
+    "type": "class",
+    "method_signature": "zipline.finance.order.Order(dt, asset, amount, stop=None, limit=None, filled=0, commission=0, id=None)",
+    "parameters": {},
+    "attributes": {
+      "id": "order ID Type: str",
+      "dt": "datetime that the order was placed Type: pd.Timestamp",
+      "asset": "asset for the order. Type: zipline.assets.Asset",
+      "amount": "the number of shares to buy/sell. A positive sign indicates a buy, and a negative sign indicates a sell. Type: int",
+      "filled": "how many shares of the order have been filled so far Type: int",
+      "commission": "the commission paid for this order Type: float",
+      "stop": "stop price for the order Type: float",
+      "limit": "limit price for the order Type: float",
+      "stop_reached": "whether the stop price has been reached Type: bool",
+      "limit_reached": "whether the limit price has been reached Type: bool",
+      "direction": "the direction of the order, 1 for buy, -1 for sell Type: int",
+      "status": "the status of the order. To check for a certain status, compare the status to zipline.finance.order.ORDER_STATUS. Possible choices: ORDER_STATUS.OPEN, ORDER_STATUS.FILLED, ORDER_STATUS.CANCELLED, ORDER_STATUS.REJECTED, ORDER_STATUS.HELD. Type: int",
+      "open": "whether the order is currently open Type: bool",
+      "open_amount": "the number of shares that are still open for this order Type: int"
+    },
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "An order placed by an algorithm."
+  },
+  "docs/zipline/order-cancellation-policies/set-cancel-policy": {
+    "type": "function",
+    "method_signature": "zipline.api.set_cancel_policy(cancel_policy)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "cancel_policy (CancelPolicy)": "The cancellation policy to use."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Set the order cancellation policy for the simulation."
+  },
+  "docs/zipline/order-cancellation-policies/eodcancel": {
+    "type": "class",
+    "method_signature": "zipline.api.EODCancel(warn_on_cancel=True)",
+    "parameters": {
+      "warn_on_cancel (bool, optional)": "Should a warning be raised if this causes an order to be cancelled?"
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Order cancellation policy that cancels orders at the end of the day. This is the default policy and does not need to be explicitly set. In live trading, this cancel policy will cause orders to be submitted with a Tif (time-in-force) of DAY."
+  },
+  "docs/zipline/order-cancellation-policies/nevercancel": {
+    "type": "class",
+    "method_signature": "zipline.api.NeverCance",
+    "parameters": {},
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Set the cancel policy to NeverCancel:": "from zipline.api import set_cancel_policy, cancel_policy\ndef initialize(context): set_cancel_policy(cancel_policy.NeverCancel())"
+    },
+    "description": "Order cancellation policy that never cancels orders. In live trading, this cancel policy will cause orders to be submitted with a Tif (time-in-force) of GTC (Good-till-canceled)."
+  },
+  "docs/zipline/portfolio-and-account/portfolio": {
+    "type": "class",
+    "method_signature": "zipline.protocol.Portfolio(start_date=None, capital_base=0.0)",
+    "parameters": {},
+    "attributes": {
+      "positions": "Dict-like object where the keys are assets and the values contain information about the currently-held position for that asset. Type: dict-like of zipline.assets.Asset to zipline.protocol.Position",
+      "cash": "Amount of cash currently held in portfolio. Type: float",
+      "cash_flow": "The change in cash over the lifetime of the portfolio. Type: float",
+      "portfolio_value": "Current liquidation value of the portfolio\u2019s holdings. This is equal to cash + sum(shares \u00d7 price) Type: float",
+      "starting_cash": "Amount of cash in the portfolio at the start of the backtest. Type: float",
+      "gross_exposure": "The gross position exposure. For equities, this is the absolute value of all long and short positions (shares \u00d7 price). For futures, this is the absolute notional value of all long and short contracts (contracts \u00d7 price \u00d7 multiplier). Type: float",
+      "gross_value": "The gross position value. For equities, this is equivalent to gross_exposure. For futures, this is 0, as futures do not have inherent value. Type: float",
+      "long_exposure": "The exposure of just the long positions. For equities, this is the value of all long positions (shares \u00d7 price). For futures, this is the notional value of all long contracts (contracts \u00d7 price \u00d7 multiplier). Type: float",
+      "long_value": "The value of just the long positions. For equities, this is equivalent to long_exposure. For futures, this is 0, as futures do not have inherent value. Type: float",
+      "net_exposure": "The net position exposure. For equities, this is the net value of all long and short positions (shares \u00d7 price). For futures, this is the net notional value of all long and short contracts (contracts \u00d7 price \u00d7 multiplier). Type: float",
+      "net_value": "The net position value. For equities, this is equivalent to net_exposure. For futures, this is 0, as futures do not have inherent value. Type: float",
+      "short_exposure": "The exposure of just the short positions. For equities, this is the value of all short positions (shares \u00d7 price). For futures, this is the notional value of all short contracts (contracts \u00d7 price \u00d7 multiplier). Type: float",
+      "short_value": "The value of just the short positions. For equities, this is equivalent to short_exposure. For futures, this is 0, as futures do not have inherent value. Type: float",
+      "longs_count": "The number of long positions. Type: int",
+      "shorts_count": "The number of short positions. Type: int",
+      "start_date": "The start date of the period being recorded. Type: pd.Timestamp",
+      "pnl": "The portfolio\u2019s cumulative profit and loss as of the period being recorded. Type: float",
+      "returns": "The portfolio\u2019s cumulative returns as of the period being recorded. Type: float"
+    },
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Check the current portfolio value:": "portfolio_value = context.portfolio.portfolio_value",
+      "Print the current positions:": "for asset, position in context.portfolio.positions.items(): print(asset, position.amount)"
+    },
+    "description": "Object providing read-only access to current portfolio state. Available in algorithms via context.portfolio."
+  },
+  "docs/zipline/portfolio-and-account/position": {
+    "type": "class",
+    "method_signature": "zipline.protocol.Position(underlying_position)",
+    "parameters": {},
+    "attributes": {
+      "asset": "The held asset. Type: zipline.assets.Asset",
+      "amount": "Number of shares held. Short positions are represented with negative values. Type: int",
+      "cost_basis": "Average price at which currently-held shares were acquired. Type: float",
+      "last_sale_price": "Most recent price for the position. Type: float",
+      "last_sale_date": "Datetime at which last_sale_price was last updated. Type: pd.Timestamp"
+    },
+    "methods": {},
+    "notes": [],
+    "examples": {
+      "Print the current positions in the portfolio:": "for asset, position in context.portfolio.positions.items(): print(asset, position.amount)"
+    },
+    "description": "A position held by an algorithm. Accessible via context.portfolio.positions."
+  },
+  "docs/zipline/portfolio-and-account/account": {
+    "type": "class",
+    "method_signature": "zipline.protocol.Account",
+    "parameters": {},
+    "attributes": {
+      "settled_cash": "the amount of settled cash in the account Type: float",
+      "accrued_interest": "Type: float",
+      "buying_power": "Type: float",
+      "equity_with_loan": "the portfolio value plus any cash in the account Type: float",
+      "total_positions_value": "the value of all positions Type: float",
+      "total_positions_exposure": "the total exposure of all positions in the portfolio Type: float",
+      "regt_equity": "Type: float",
+      "regt_margin": "Type: float",
+      "initial_margin_requirement": "Type: float",
+      "maintenance_margin_requirement": "Type: float",
+      "available_funds": "Type: float",
+      "excess_liquidity": "Type: float",
+      "cushion": "Type: float",
+      "day_trades_remaining": "Type: float",
+      "leverage": "the gross leverage of the account, that is, the gross value of all positions divided by the account value Type: float",
+      "net_leverage": "the net leverage of the account, that is, the net value of all positions divided by the account value Type: float",
+      "net_liquidation": "the total account value Type: float"
+    },
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "The account object tracks information about the trading account. The values are updated as the algorithm runs and its keys remain unchanged. These values are calculated by Zipline based on the algorithm\u2019s capital base and order activity and do not reflect the actual values of the broker. Available in algorithms via context.account."
+  },
+  "docs/zipline/portfolio-and-account/capital-change": {
+    "type": "function",
+    "method_signature": "zipline.api.capital_change(amount)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "amount (float, required)": "The amount to deposit or withdraw. Negative amounts are withdrawals and positive amounts are deposits. The amount is assumed to be in the algorithm\u2019s base currency."
+    },
+    "notes": [],
+    "examples": {
+      "Withdraw $1,000:": "algo.capital_change(-1000)",
+      "Deposit $1,000:": "algo.capital_change(1000)"
+    },
+    "description": "Simulate a deposit or withdrawal from the algorithm\u2019s cash."
+  },
+  "docs/zipline/assets/sid": {
+    "type": "function",
+    "method_signature": "zipline.api.sid(sid)",
+    "returns": "asset \u2013 The asset with the given sid. Return type: Asset",
+    "raises": "SidsNotFound \u2013 When a requested sid does not map to any asset.",
+    "parameters": {
+      "sid (str)": "The QuantRocket sid that identifies the asset."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Lookup an Asset by its unique asset identifier."
+  },
+  "docs/zipline/assets/symbol": {
+    "type": "function",
+    "method_signature": "zipline.api.symbol(symbol)",
+    "returns": "equity \u2013 The equity with the ticker symbol. Return type: zipline.assets.Equity",
+    "raises": "SymbolNotFound \u2013 Raised when the symbol was not held by any equity. MultipleSymbolsFound \u2013 Raised when the symbol was held by more than one equity.",
+    "parameters": {
+      "symbol (str)": "The ticker symbol for the equity."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Lookup an Equity by its ticker symbol. Ticker symbols can change over time, and this function will raise an error if the ticker symbol has been associated with more than one equity. For a more robust way to retrieve an equity, use sid()."
+  },
+  "docs/zipline/assets/continuous-future": {
+    "type": "function",
+    "method_signature": "zipline.api.continuous_future(root_symbol_str, offset=0, roll='volume', adjustment='mul')",
+    "returns": "continuous_future \u2013 The continuous future specifier. Return type: ContinuousFuture",
+    "raises": "",
+    "parameters": {
+      "root_symbol_str (str)": "The root symbol for the future chain.",
+      "offset (int, optional)": "The distance from the primary contract. Default is 0.",
+      "roll_style (str, optional)": "How rolls are determined. Possible choices: \u2018volume\u2019, (roll when back contract volume exceeds front contract volume), or \u2018calendar\u2019 (roll on rollover date). Default is \u2018volume\u2019.",
+      "adjustment (str, optional)": "Method for adjusting lookback prices between rolls. Options are \u2018mul\u2019, \u2018add\u2019 or None. \u2018mul\u2019 calculates the ratio of front and back contracts on the roll date ((back - front)/front) and multiplies front contract prices by (1 + ratio). \u2018add\u2019 calculates the difference between back and front contracts on the roll date (back - front) and adds the difference to front contract prices. None concatenates contracts without any adjustment. Default is \u2018mul\u2019."
+    },
+    "notes": [],
+    "examples": {
+      "Create a continuous future for ES, rolling on volume:": "import zipline.api as algo\nalgo.continuous_future(\"ES\", roll=\"volume\")"
+    },
+    "description": "Create a continuous future from a specified root symbol."
+  },
+  "docs/zipline/assets/asset": {
+    "type": "class",
+    "method_signature": "zipline.assets.Asset(sid, real_sid, symbol, asset_name, exchange_info, currency, start_date, end_date, first_traded, auto_close_date, tick_size, multiplier, price_magnifier)",
+    "parameters": {
+      "sid (int)": "Internal Zipline sid (security ID). For the QuantRocket sid, use real_sid.",
+      "zipline_sid (int)": "Internal Zipline sid (alias for Asset.sid). For the QuantRocket sid, use real_sid.",
+      "real_sid (str)": "The QuantRocket sid. Persistent unique identifier assigned to the asset.",
+      "symbol (str)": "Most recent ticker under which the asset traded. This field can change without warning if the asset changes tickers. Use real_sid for a persistent identifier.",
+      "asset_name (str)": "Full name of the asset.",
+      "exchange (str)": "Canonical short name of the exchange on which the asset trades (e.g., \u2018NYSE\u2019).",
+      "exchange_full (str)": "Full name of the exchange on which the asset trades (e.g., \u2018NEW YORK STOCK EXCHANGE\u2019).",
+      "country_code (str)": "Two character code indicating the country in which the asset trades.",
+      "currency (str)": "ISO currency of asset.",
+      "start_date (pd.Timestamp)": "First date for which price data is available for this asset",
+      "end_date (pd.Timestamp)": "Last date for which price data is available for this asset",
+      "multiplier (float)": "The contract multiplier",
+      "price_magnifier (float)": "The price magnifier by which to divide prices when prices are quoted in a smaller unit than the asset\u2019s currency. Rarely used.",
+      "auto_close_date (pd.Timestamp)": "Delisted date for equities, or last trade date for futures."
+    },
+    "attributes": {
+      "sid": "Internal Zipline sid (security ID). For the QuantRocket sid, use real_sid.",
+      "zipline_sid": "Internal Zipline sid (alias for Asset.sid). For the QuantRocket sid, use real_sid.",
+      "real_sid": "The QuantRocket sid. Persistent unique identifier assigned to the asset.",
+      "symbol": "Most recent ticker under which the asset traded. This field can change without warning if the asset changes tickers. Use real_sid for a persistent identifier.",
+      "asset_name": "Full name of the asset.",
+      "exchange = None": "Canonical short name of the exchange on which the asset trades (e.g., \u2018NYSE\u2019).",
+      "exchange_full = None": "Full name of the exchange on which the asset trades (e.g., \u2018NEW YORK STOCK EXCHANGE\u2019).",
+      "exchange_info": "ExchangeInfo object.",
+      "currency": "ISO currency of asset.",
+      "start_date": "First date for which price data is available for this asset.",
+      "end_date": "Last date for which price data is available for this asset.",
+      "auto_close_date": "Delisted date for equities, or last trade date for futures.",
+      "price_multiplier": "The contract multiplier",
+      "price_magnifier": "The price magnifier by which to divide prices when prices are quoted in a smaller unit than the asset\u2019s currency. Rarely used."
+    },
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Base class for entities that can be owned by a trading algorithm."
+  },
+  "docs/zipline/assets/equity": {
+    "type": "class",
+    "method_signature": "zipline.assets.Equity(sid, real_sid, symbol, asset_name, exchange_info, currency, start_date, end_date, first_traded, auto_close_date, tick_size, multiplier, price_magnifier)",
+    "parameters": {},
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Asset subclass representing partial ownership of a company, trust, or partnership."
+  },
+  "docs/zipline/assets/future": {
+    "type": "class",
+    "method_signature": "zipline.assets.Future(sid, real_sid, symbol, asset_name, exchange_info, currency, start_date, end_date, first_traded, auto_close_date, tick_size, multiplier, price_magnifier)",
+    "parameters": {},
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Asset subclass representing ownership of a futures contract."
+  },
+  "docs/zipline/trading-controls/set-asset-restrictions": {
+    "type": "function",
+    "method_signature": "zipline.api.set_asset_restrictions(restrictions, on_error='fail')",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "restricted_list (zipline.finance.asset_restrictions.Restrictions)": "An object providing information about restricted assets."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Set a restriction on which assets can be ordered."
+  },
+  "docs/zipline/trading-controls/asset-restrictions-staticrestrictions": {
+    "type": "class",
+    "method_signature": "zipline.finance.asset_restrictions.StaticRestrictions(restricted_list)",
+    "parameters": {
+      "restricted_list (iterable of assets)": "The assets to be restricted"
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Static restrictions stored in memory that are constant regardless of dt for each asset."
+  },
+  "docs/zipline/trading-controls/set-long-only": {
+    "type": "function",
+    "method_signature": "zipline.api.set_long_only(on_error='fail')",
+    "parameters": {},
+    "notes": [],
+    "examples": {},
+    "description": "Set a rule specifying that this algorithm cannot take short positions."
+  },
+  "docs/zipline/trading-controls/set-max-leverage": {
+    "type": "function",
+    "method_signature": "zipline.api.set_max_leverage(max_leverage)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "max_leverage (float)": "The maximum leverage for the algorithm. If not provided there will be no maximum."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Set a limit on the maximum leverage of the algorithm."
+  },
+  "docs/zipline/trading-controls/set-max-order-count": {
+    "type": "function",
+    "method_signature": "zipline.api.set_max_order_count(max_count, on_error='fail')",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "max_count (int)": "The maximum number of orders that can be placed on any single day."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Set a limit on the number of orders that can be placed in a single day."
+  },
+  "docs/zipline/trading-controls/set-max-order-size": {
+    "type": "function",
+    "method_signature": "zipline.api.set_max_order_size(asset=None, max_shares=None, max_notional=None, on_error='fail')",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "asset (Asset, optional)": "If provided, this sets the guard only on positions in the given asset.",
+      "max_shares (int, optional)": "The maximum number of shares that can be ordered at one time.",
+      "max_notional (float, optional)": "The maximum value that can be ordered at one time."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Set a limit on the number of shares and/or dollar value of any single order placed for asset. Limits are treated as absolute values and are enforced at the time that the algo attempts to place an order for sid. If an algorithm attempts to place an order that would result in exceeding one of these limits, raise a TradingControlException."
+  },
+  "docs/zipline/trading-controls/set-max-position-size": {
+    "type": "function",
+    "method_signature": "zipline.api.set_max_position_size(asset=None, max_shares=None, max_notional=None, on_error='fail')",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "asset (Asset, optional)": "If provided, this sets the guard only on positions in the given asset.",
+      "max_shares (int, optional)": "The maximum number of shares to hold for an asset.",
+      "max_notional (float, optional)": "The maximum value to hold for an asset."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Set a limit on the number of shares and/or dollar value held for the given asset. Limits are treated as absolute values and are enforced at the time that the algo attempts to place an order for sid. This means that it\u2019s possible to end up with more than the max number of shares due to splits/dividends, and more than the max notional due to price improvement. If an algorithm attempts to place an order that would result in increasing the absolute value of shares/dollar value exceeding one of these limits, raise a TradingControlException."
+  },
+  "docs/zipline/benchmarks/set-benchmark": {
+    "type": "function",
+    "method_signature": "zipline.api.set_benchmark(benchmark)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "benchmark (Asset)": "The asset to set as the new benchmark."
+    },
+    "notes": [
+      "Any dividends payed out for that new benchmark asset will be automatically reinvested."
+    ],
+    "examples": {
+      "Set the benchmark to SPY:": "import zipline.api as algo\nspy = algo.sid(\"FIBBG000BDTBL9\")\nalgo.set_benchmark(spy)"
+    },
+    "description": "Set the benchmark asset."
+  },
+  "docs/zipline/commission-models/set-commission": {
+    "type": "function",
+    "method_signature": "zipline.api.set_commission(us_equities=None, us_futures=None)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "us_equities (zipline.api.commission.EquityCommissionModel)": "The commission model to use for trading US equities.",
+      "us_futures (zipline.api.commission.FutureCommissionModel)": "The commission model to use for trading US futures."
+    },
+    "notes": [
+      "This function can only be called during initialize()."
+    ],
+    "examples": {
+      "Set the equities commission to 0.001 per share:": "import zipline.api as algo\nalgo.set_commission(algo.commission.PerShare(cost=0.001))"
+    },
+    "description": "Set the commission models for the simulation."
+  },
+  "docs/zipline/commission-models/commission-commissionmodel": {
+    "type": "class",
+    "method_signature": "zipline.finance.commission.CommissionMode",
+    "parameters": {},
+    "attributes": {},
+    "methods": {
+      "abstract calculate(order, transaction)": "Calculate the amount of commission to charge on order as a result of transaction. Parameters: order (zipline.finance.order.Order) \u2013 The order being processed. The commission field of order is a float indicating the amount of commission already charged on this order. transaction (zipline.finance.transaction.Transaction) \u2013 The transaction being processed. A single order may generate multiple transactions if there isn\u2019t enough volume in a given bar to fill the full amount requested in the order. Returns: amount_charged \u2013 The additional commission, in dollars, that we should attribute to this order. Return type: float"
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Abstract base class for commission models. Commission models are responsible for accepting order/transaction pairs and calculating how much commission should be charged to an algorithm\u2019s account on each transaction. To implement a new commission model, create a subclass of CommissionModel and implement calculate(). allowed_asset_types\u00b6"
+  },
+  "docs/zipline/commission-models/commission-pershare": {
+    "type": "class",
+    "method_signature": "zipline.finance.commission.PerShare(cost=0.001, min_trade_cost=0.0)",
+    "parameters": {
+      "cost (float, optional)": "The amount of commissions paid per share traded. Default is one tenth of a cent per share.",
+      "min_trade_cost (float, optional)": "The minimum amount of commissions paid per trade. Default is no minimum."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [
+      "This is zipline\u2019s default commission model for equities."
+    ],
+    "examples": {},
+    "description": "Calculates a commission for a transaction based on a per share cost with an optional minimum cost per trade."
+  },
+  "docs/zipline/commission-models/commission-pertrade": {
+    "type": "class",
+    "method_signature": "zipline.finance.commission.PerTrade(cost=0.0)",
+    "parameters": {
+      "cost (float, optional)": "The flat amount of commissions paid per equity trade."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Calculates a commission for a transaction based on a per trade cost. For orders that require multiple fills, the full commission is charged to the first fill."
+  },
+  "docs/zipline/commission-models/commission-perdollar": {
+    "type": "class",
+    "method_signature": "zipline.finance.commission.PerDollar(cost=0.0015)",
+    "parameters": {
+      "cost (float, optional)": "The flat amount of commissions paid per dollar of equities traded. Default is a commission of $0.0015 per dollar transacted."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Model commissions by applying a fixed cost per dollar transacted."
+  },
+  "docs/zipline/commission-models/commission-percontract": {
+    "type": "class",
+    "method_signature": "zipline.finance.commission.PerContract(cost, exchange_fee, min_trade_cost=0.0)",
+    "parameters": {
+      "cost (float or dict)": "The amount of commissions paid per contract traded. If given a float, the commission for all futures contracts is the same. If given a dictionary, it must map root symbols to the commission cost for contracts of that symbol.",
+      "exchange_fee (float or dict)": "A flat-rate fee charged by the exchange per trade. This value is a constant, one-time charge no matter how many contracts are being traded. If given a float, the fee for all contracts is the same. If given a dictionary, it must map root symbols to the fee for contracts of that symbol.",
+      "min_trade_cost (float, optional)": "The minimum amount of commissions paid per trade."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Calculates a commission for a transaction based on a per contract cost with an optional minimum cost per trade."
+  },
+  "docs/zipline/commission-models/commission-perfuturetrade": {
+    "type": "class",
+    "method_signature": "zipline.finance.commission.PerFutureTrade(cost=0.0)",
+    "parameters": {
+      "cost (float or dict)": "The flat amount of commissions paid per trade, regardless of the number of contracts being traded. If given a float, the commission for all futures contracts is the same. If given a dictionary, it must map root symbols to the commission cost for trading contracts of that symbol."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Calculates a commission for a transaction based on a per trade cost."
+  },
+  "docs/zipline/slippage-models/set-slippage": {
+    "type": "function",
+    "method_signature": "zipline.api.set_slippage(us_equities=None, us_futures=None)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "us_equities (zipline.api.slippage.EquitySlippageModel)": "The slippage model to use for trading US equities.",
+      "us_futures (zipline.api.slippage.FutureSlippageModel)": "The slippage model to use for trading US futures."
+    },
+    "notes": [
+      "This function can only be called during initialize()."
+    ],
+    "examples": {
+      "Set the equities slippage to 5 basis points:": "import zipline.api as algo\nalgo.set_slippage(algo.slippage.FixedBasisPointsSlippage(basis_points=5.0))"
+    },
+    "description": "Set the slippage models for the simulation."
+  },
+  "docs/zipline/slippage-models/slippage-slippagemodel": {
+    "type": "class",
+    "method_signature": "zipline.finance.slippage.SlippageMode",
+    "parameters": {},
+    "attributes": {
+      "property volume_for_bar": "Number of shares that have already been filled for the currently-filling asset in the current minute. This attribute is maintained automatically by the base class. It can be used by subclasses to keep track of the total amount filled if there are multiple open orders for a single asset. Type: int"
+    },
+    "methods": {
+      "abstract process_order(data, order)": "Compute the number of shares and price to fill for order in the current minute. Parameters: data (zipline.api.BarData) \u2013 The data for the given bar. order (zipline.finance.order.Order) \u2013 The order to simulate. Returns: execution_price (float) \u2013 The price of the fill. execution_volume (int) \u2013 The number of shares that should be filled. Must be between 0 and order.amount - order.filled. If the amount filled is less than the amount remaining, order will remain open and will be passed again to this method in the next minute. Raises: zipline.finance.slippage.LiquidityExceeded \u2013 May be raised if no more orders should be processed for the current asset during the current bar. Notes Before this method is called, volume_for_bar will be set to the number of shares that have already been filled for order.asset in the current minute. process_order() is not called by the base class on bars for which there was no historical volume."
+    },
+    "notes": [
+      "Subclasses that define their own constructors should call super(<subclass name>, self).__init__() before performing other initialization."
+    ],
+    "examples": {},
+    "description": "Abstract base class for slippage models. Slippage models are responsible for the rates and prices at which orders fill during a simulation. To implement a new slippage model, create a subclass of SlippageModel and implement process_order(). The process_order() method must return a tuple of (execution_price, execution_volume), which signifies the price and volume for the transaction that your model wants to generate. Your model gets passed the same data object that is passed to handle_data and other functions, letting you do any price or history lookup for any security in your model. The order object has the following properties: amount (float), asset (Asset), stop and limit (float), and stop_reached and limit_reached (boolean). The create_transaction method takes the given order, the data object, and the price and amount calculated by your slippage model, and returns the newly constructed transaction. Many slippage models\u2019 behavior depends on how much of the total volume traded is being captured by the algorithm. You can use volume_for_bar() to see how many shares of the current security have been traded so far during this bar. If your algorithm has many different orders for the same stock in the same bar, this is useful for making sure you don\u2019t take an unrealistically large fraction of the traded volume. If your slippage model doesn\u2019t place a transaction for the full amount of the order, the order stays open with an updated amount value, and will be passed to process_order() on the next bar. Orders that have limits that have not been reached will not be passed to process_order(). If your transaction has 0 shares or more shares than the original order amount, an exception will be thrown."
+  },
+  "docs/zipline/slippage-models/slippage-fixedslippage": {
+    "type": "class",
+    "method_signature": "zipline.finance.slippage.FixedSlippage(spread=0.0)",
+    "parameters": {
+      "spread (float, optional)": "Size of the assumed spread for all assets. Orders to buy will be filled at close + (spread / 2). Orders to sell will be filled at close - (spread / 2)."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [
+      "This model does not impose limits on the size of fills. An order for an asset will always be filled as soon as any trading activity occurs in the order\u2019s asset, even if the size of the order is greater than the historical volume."
+    ],
+    "examples": {},
+    "description": "Simple model assuming a fixed-size spread for all assets. When using the FixedSlippage model, the size of your order does not affect the price of your trade execution. You specify a \u2018spread\u2019 that you think is a typical bid/ask spread to use. When you place a buy order, half of the spread is added to the price; when you place a sell order, half of the spread is subtracted from the price. Fills under fixed slippage models are not limited to the amount traded in the minute bar. In the first non-zero-volume bar, the order will be completely filled. This requires you to be careful about ordering; naive use of fixed slippage models will lead to unrealistic fills, particularly with large orders and/or illiquid securities."
+  },
+  "docs/zipline/slippage-models/slippage-fixedbasispointsslippage": {
+    "type": "class",
+    "method_signature": "zipline.finance.slippage.FixedBasisPointsSlippage(basis_points=5.0, volume_limit=0.1)",
+    "parameters": {
+      "basis_points (float, optional)": "Number of basis points of slippage to apply for each fill. Default is 5 basis points.",
+      "volume_limit (float, optional)": "Fraction of trading volume that can be filled each minute. Default is 10% of trading volume."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [
+      "A basis point is one one-hundredth of a percent. This class, default-constructed, is zipline\u2019s default slippage model for equities."
+    ],
+    "examples": {},
+    "description": "Model slippage as a fixed percentage difference from historical minutely close price, limiting the size of fills to a fixed percentage of historical minutely volume. Orders to buy are filled at: historical_price * (1 + (basis_points * 0.0001)) Orders to sell are filled at: historical_price * (1 - (basis_points * 0.0001)) Fill sizes are capped at: historical_volume * volume_limit"
+  },
+  "docs/zipline/slippage-models/slippage-volumeshareslippage": {
+    "type": "class",
+    "method_signature": "zipline.finance.slippage.VolumeShareSlippage(volume_limit=0.025, price_impact=0.1)",
+    "parameters": {
+      "volume_limit (float, optional)": "Maximum percent of historical volume that can fill in each bar. 0.5 means 50% of historical volume. 1.0 means 100%. Default is 0.025 (i.e., 2.5%).",
+      "price_impact (float, optional)": "Scaling coefficient for price impact. Larger values will result in more simulated price impact. Smaller values will result in less simulated price impact. Default is 0.1."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Model slippage as a quadratic function of percentage of historical volume. Orders to buy will be filled at: price * (1 + price_impact * (volume_share ** 2)) Orders to sell will be filled at: price * (1 - price_impact * (volume_share ** 2)) where price is the close price for the bar, and volume_share is the percentage of minutely volume filled, up to a max of volume_limit. In the VolumeShareSlippage model, the price you get is a function of your order size relative to the security\u2019s actual traded volume. You provide a volume_limit cap (default 0.025), which limits the proportion of volume that your order can take up per bar. For example: if the backtest is running in one-minute bars, and you place an order for 60 shares; then 1000 shares trade in each of the next several minute; and the volume_limit is 0.025; then your trade order will be split into three orders (25 shares, 25 shares, and 10 shares). Setting the volume_limit to 1.00 will permit the backtester to use up to 100% of the bar towards filling your order. Using the same example, this will fill 60 shares in the next minute bar. The price impact constant (default 0.1) defines how large of an impact your order will have on the backtester\u2019s price calculation. The slippage is calculated by multiplying the price impact constant by the square of the ratio of the order to the total volume. In our previous example, for the 25-share orders, the price impact is .1 * (25/1000) * (25/1000), or 0.00625%. For the 10-share order, the price impact is .1 * (10/1000) * (10/1000), or .001%."
+  },
+  "docs/zipline/slippage-models/slippage-volatilityvolumeshare": {
+    "type": "class",
+    "method_signature": "zipline.finance.slippage.VolatilityVolumeShare(volume_limit, eta=ROOT_SYMBOL_TO_ETA)",
+    "parameters": {
+      "volume_limit (float)": "Maximum percentage (as a decimal) of a bar\u2019s total volume that can be traded.",
+      "eta (float or dict)": "Constant used in the market impact formula. If given a float, the eta for all futures contracts is the same. If given a dictionary, it must map root symbols to the eta for contracts of that symbol."
+    },
+    "attributes": {},
+    "methods": {},
+    "notes": [],
+    "examples": {},
+    "description": "Model slippage for futures contracts according to the following formula: new_price = price + (price * MI / 10000), where \u2018MI\u2019 is market impact, which is defined as: MI = eta * sigma * sqrt(psi) eta is a constant which varies by root symbol.\n\n\nsigma is 20-day annualized volatility.\n\n\npsi is the volume traded in the given bar divided by 20-day ADV."
+  },
+  "docs/zipline/fee-models/set-margin-interest": {
+    "type": "function",
+    "method_signature": "zipline.api.set_margin_interest(interest_rate)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "interest_rate (float)": "The annualized interest rate charged on margin loans."
+    },
+    "notes": [
+      "This function can only be called during initialize().",
+      "Margin interest accrues daily on negative cash balances and is assessed on the first trading day of the month.",
+      "By industry convention, the annualized interest rate is divided by 360, not 365, to calculate daily interest."
+    ],
+    "examples": {
+      "Set 5% margin interest:": "import zipline.api as algo\n\ndef initialize(context): algo.set_margin_interest(0.05)"
+    },
+    "description": "Set the margin interest rate for the simulation."
+  },
+  "docs/zipline/fee-models/set-management-fee": {
+    "type": "function",
+    "method_signature": "zipline.api.set_management_fee(rate, date_rule=None)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "rate (float)": "The annualized percentage of assets under management (AUM) that is charged as a management fee.",
+      "date_rule (EventRule)": "The date rule used to determine when the management fee should be assessed. By default, management fees are assessed on the first trading day of each month."
+    },
+    "notes": [
+      "This function can only be called during initialize()."
+    ],
+    "examples": {
+      "Set a \u201c2 and 20\u201d fee model:": "import zipline.api as algo\n\ndef initialize(context): algo.set_management_fee(0.02) algo.set_performance_fee(0.20)"
+    },
+    "description": "Set the management fee for the simulation."
+  },
+  "docs/zipline/fee-models/set-performance-fee": {
+    "type": "function",
+    "method_signature": "zipline.api.set_performance_fee(rate, date_rule=None)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "rate (float)": "The percentage of profit (subject to highwater mark) that is charged as a performance fee.",
+      "date_rule (EventRule)": "The date rule used to determine when the performance fee should be assessed. By default, performance fees are assessed on the first trading day of the quarter."
+    },
+    "notes": [
+      "This function can only be called during initialize()."
+    ],
+    "examples": {
+      "Set a \u201c2 and 20\u201d fee model:": "import zipline.api as algo\n\ndef initialize(context): algo.set_management_fee(0.02) algo.set_performance_fee(0.20)"
+    },
+    "description": "Set the performance fee for the simulation."
+  },
+  "docs/zipline/fee-models/set-borrow-fees-provider": {
+    "type": "function",
+    "method_signature": "zipline.api.set_borrow_fees_provider(name)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "name (str)": "The name of the data provider. The only supported choice is \u2018ibkr\u2019."
+    },
+    "notes": [
+      "This function can only be called during initialize().",
+      "By industry convention, the annualized borrow fee is divided by 360, not 365, to calculate daily fees. The daily fee rate is assessed on a collateral amount that is calculated by multiplying the number of shares times the share price (rounded up to the nearest dollar) times 102% (by industry convention). For example, suppose the annualized borrow fee rate is 3.6%, the share price is $9.15, and 1,000 shares are held short. The daily borrow fee rate is 0.01% (3.6% / 360), and the collateral amount is $10,200: 1,000 shares x $10.00/share ($9.15/share rounded up) x 102% = $10,200. Consequently, the daily borrow fee is $1.02.",
+      "Borrow fees accrue daily and are debited from the account on the first trading day of each month."
+    ],
+    "examples": {
+      "Set Interactive Brokers as the borrow fees data provider:": "import zipline.api as algo\n\ndef initialize(context): algo.set_borrow_fees_provider('ibkr')"
+    },
+    "description": "Set the data provider whose borrow fee data will be used for debiting borrow fees on short positions during the simulation."
+  },
+  "docs/zipline/pipeline-in-algorithm/attach-pipeline": {
+    "type": "function",
+    "method_signature": "zipline.api.attach_pipeline(pipeline, name, chunks=None, eager=True)",
+    "returns": "pipeline \u2013 Returns the pipeline that was attached unchanged. Return type: Pipeline",
+    "raises": "",
+    "parameters": {
+      "pipeline (Pipeline)": "The pipeline to have computed.",
+      "name (str)": "The name of the pipeline.",
+      "chunks (int or iterator, optional)": "The number of days to compute pipeline results for. Increasing this number will make it longer to get the first results but may improve the total runtime of the simulation. If an iterator is passed, we will run in chunks based on values of the iterator. Default is True.",
+      "eager (bool, optional)": "Whether or not to compute this pipeline prior to before_trading_start."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Register a pipeline to be computed at the start of each day."
+  },
+  "docs/zipline/pipeline-in-algorithm/pipeline-output": {
+    "type": "function",
+    "method_signature": "zipline.api.pipeline_output(name)",
+    "returns": "results \u2013 DataFrame containing the results of the requested pipeline for the current simulation date. Return type: pd.DataFrame",
+    "raises": "NoSuchPipeline \u2013 Raised when no pipeline with the name name has been registered.",
+    "parameters": {
+      "name (str)": "Name of the pipeline for which results are requested."
+    },
+    "notes": [],
+    "examples": {},
+    "description": "Get the results of the pipeline that was attached with the name: name."
+  },
+  "docs/zipline/recording-variables/record": {
+    "type": "function",
+    "method_signature": "zipline.api.record(**kwargs)",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "**kwargs": "The names and values to record."
+    },
+    "notes": [
+      "These values will appear in the results CSV returned in backtests."
+    ],
+    "examples": {},
+    "description": "Track and record values each day."
+  },
+  "docs/zipline/zipline-live-trading/set-realtime-db": {
+    "type": "function",
+    "method_signature": "zipline.api.set_realtime_db(code, fields={})",
+    "returns": "",
+    "raises": "",
+    "parameters": {
+      "code (str, required)": "the realtime database code. Must be an aggregate database with 1-minute bars.",
+      "fields (dict, optional)": "dict mapping expected Zipline field names (\u2018close\u2019, \u2018high\u2019, \u2018low\u2019, \u2018open\u2019, \u2018volume\u2019) to realtime database field names"
+    },
+    "notes": [],
+    "examples": {
+      "Set the realtime database and map fields:": "algo.set_realtime_db( \"us-stk-tick-1min\", fields={ \"close\": \"LastPriceClose\", \"open\": \"LastPriceOpen\", \"high\": \"LastPriceHigh\", \"low\": \"LastPriceLow\", \"volume\": \"LastSizeSum\"})"
+    },
+    "description": "Set the realtime database to use for querying up-to-date minute bars in live trading."
+  },
+  "docs/zipline/zipline-live-trading/get-environment": {
+    "type": "function",
+    "method_signature": "zipline.api.get_environment(field)",
+    "returns": "val \u2013 The value for the field queried. See above for more information. Return type: any",
+    "raises": "ValueError \u2013 Raised when field is not a valid option.",
+    "parameters": {
+      "field ({'arena', 'data_frequency', 'start', 'end', 'capital_base', 'platform', '*'})": "The field to query. The options have the following meanings:"
+    },
+    "notes": [],
+    "examples": {
+      "Only perform a certain action in live trading:": "import zipline.api as algo\nif algo.get_environment(\"arena\") == \"trade\": ..."
+    },
+    "description": "Query the execution environment."
+  }
+}
