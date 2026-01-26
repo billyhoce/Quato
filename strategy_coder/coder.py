@@ -1,118 +1,137 @@
-"""Strategy Coder for QuantRocket Trading Strategies.
+"""
+Strategy Coder
 
-This module translates trading hypotheses into executable QuantRocket strategy code.
+Generates executable Zipline strategy code from trading hypotheses.
 """
 
-from typing import Dict, Any, Optional, List
+import ast
 from dataclasses import dataclass
+from typing import Optional, Any
+from pathlib import Path
 
 
 @dataclass
 class StrategyCode:
-    """Represents generated strategy code.
+    """Container for generated strategy code."""
     
-    Attributes:
-        hypothesis_id: ID of the hypothesis this code implements
-        code: The generated Python code
-        dependencies: List of required packages
-        config: Strategy configuration parameters
-        validated: Whether the code has been validated
-    """
     hypothesis_id: str
     code: str
-    dependencies: List[str]
-    config: Dict[str, Any]
+    dependencies: list[str]
+    config: dict[str, Any]
     validated: bool = False
+    validation_errors: Optional[str] = None
 
 
 class StrategyCoder:
-    """Translates hypotheses into executable QuantRocket strategy code.
+    """Generates and validates Zipline strategy code."""
     
-    This class uses LLMs to generate well-structured, tested trading strategy
-    code that integrates with QuantRocket's APIs.
-    """
-    
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4") -> None:
-        """Initialize the strategy coder.
+    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4o"):
+        """
+        Initialize the strategy coder.
         
         Args:
-            api_key: API key for LLM service (if None, reads from environment)
-            model: Name of the LLM model to use
+            api_key: Optional API key for LLM provider. If None, reads from environment.
+            model: LLM model to use for code generation.
         """
         self.api_key = api_key
         self.model = model
-        self.templates: Dict[str, str] = {}
+        self.templates: dict[str, str] = {}
         self._load_templates()
     
     def _load_templates(self) -> None:
         """Load strategy code templates."""
-        # Placeholder implementation
-        self.templates["basic"] = "# Basic strategy template"
-        self.templates["mean_reversion"] = "# Mean reversion template"
-        self.templates["momentum"] = "# Momentum template"
+        # Placeholder for future template loading
+        pass
     
     def generate_strategy_code(
-        self,
-        hypothesis: Dict[str, Any],
+        self, 
+        hypothesis: dict[str, Any], 
         template: str = "basic"
     ) -> StrategyCode:
-        """Generate strategy code from a hypothesis.
+        """
+        Generate strategy code from hypothesis.
         
         Args:
-            hypothesis: Dictionary containing hypothesis details
-            template: Name of the code template to use
+            hypothesis: Trading hypothesis dictionary
+            template: Template type to use
             
         Returns:
-            StrategyCode object containing the generated code
+            StrategyCode object with generated code
         """
-        # Placeholder implementation
-        print(f"Generating strategy code for hypothesis: {hypothesis.get('title', 'Unknown')}")
+        # Placeholder - will be implemented by LangGraph nodes
         return StrategyCode(
-            hypothesis_id=hypothesis.get('id', 'unknown'),
-            code="# Generated strategy code placeholder",
-            dependencies=["quantrocket", "pandas", "numpy"],
+            hypothesis_id=hypothesis.get("id", "unknown"),
+            code="",
+            dependencies=["zipline", "pandas"],
             config={}
         )
     
-    def validate_code(self, strategy_code: StrategyCode) -> bool:
-        """Validate generated strategy code.
+    def validate_code(self, code: str) -> tuple[bool, Optional[str]]:
+        """
+        Validate Python syntax of generated code using AST parser.
         
         Args:
-            strategy_code: The strategy code to validate
+            code: Python code string to validate
             
         Returns:
-            True if code is valid, False otherwise
+            Tuple of (is_valid, error_message)
+            - is_valid: True if syntax is valid, False otherwise
+            - error_message: None if valid, error description if invalid
         """
-        # Placeholder implementation
-        print(f"Validating strategy code for hypothesis {strategy_code.hypothesis_id}")
-        return True
+        try:
+            ast.parse(code)
+            return True, None
+        except SyntaxError as e:
+            error_msg = f"Syntax error at line {e.lineno}: {e.msg}"
+            if e.text:
+                error_msg += f"\n  {e.text.strip()}"
+                if e.offset:
+                    error_msg += f"\n  {' ' * (e.offset - 1)}^"
+            return False, error_msg
+        except Exception as e:
+            return False, f"Validation error: {str(e)}"
     
-    def refactor_code(
-        self,
-        strategy_code: StrategyCode,
-        improvements: List[str]
-    ) -> StrategyCode:
-        """Refactor strategy code based on suggested improvements.
+    def validate_strategy_code(self, strategy_code: StrategyCode) -> bool:
+        """
+        Validate a StrategyCode object and update its validation status.
         
         Args:
-            strategy_code: The original strategy code
+            strategy_code: StrategyCode object to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        is_valid, error_msg = self.validate_code(strategy_code.code)
+        strategy_code.validated = is_valid
+        strategy_code.validation_errors = error_msg
+        return is_valid
+    
+    def refactor_code(
+        self, 
+        strategy_code: StrategyCode, 
+        improvements: list[str]
+    ) -> StrategyCode:
+        """
+        Refactor code based on improvement suggestions.
+        
+        Args:
+            strategy_code: Current strategy code
             improvements: List of improvement suggestions
             
         Returns:
-            Refactored StrategyCode object
+            New StrategyCode with refactored code
         """
-        # Placeholder implementation
-        print(f"Refactoring code with {len(improvements)} improvements")
+        # Placeholder - will be implemented by refinement agent
         return strategy_code
     
     def export_to_file(self, strategy_code: StrategyCode, filepath: str) -> None:
-        """Export strategy code to a Python file.
+        """
+        Export strategy code to a Python file.
         
         Args:
-            strategy_code: The strategy code to export
+            strategy_code: StrategyCode object to export
             filepath: Path where to save the file
         """
-        # Placeholder implementation
-        print(f"Exporting strategy code to {filepath}")
-        with open(filepath, 'w') as f:
-            f.write(strategy_code.code)
+        path = Path(filepath)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(strategy_code.code, encoding="utf-8")

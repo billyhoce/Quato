@@ -7,6 +7,11 @@ GitPython
 # MCP dependencies
 mcp
 
+# LangGraph agent dependencies
+langgraph
+langchain-core
+langchain-openai
+
 # For jupyter notebook testing and web scraping in parsing API specs
 ipykernel
 beautifulsoup4
