@@ -6,7 +6,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 # Initialize FastMCP server
-mcp = FastMCP("quato_server")
+mcp = FastMCP("ZiplineStrategy")
 
 # Load API documentation from JSON files
 SCRIPT_DIR = Path(__file__).parent
@@ -40,7 +40,7 @@ def get_zipline_overview() -> dict:
 
 @mcp.tool
 def get_function_or_class_details(function_class_names: list[str]) -> list[dict[str, Any]]:
-    """Given a list of function or class names, retrieve their detailed information, including description and parameters."""
+    """Given a list of function or class names (Same format as the keys when retrieving overviews), retrieve their detailed information, including description and parameters."""
     details_list = [
         combined_api_data[name] 
         for name in function_class_names 

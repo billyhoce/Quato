@@ -104,5 +104,4 @@ def rebalance(context: algo.Context, data: algo.BarData):
         elif short_mavg < long_mavg:
             algo.order_target_value(asset, 0)
 
-
 '''

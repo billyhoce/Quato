@@ -8,9 +8,9 @@ GitPython
 mcp
 
 # LangGraph agent dependencies
-langgraph
-langchain-core
-langchain-openai
+langchain
+langchain-mcp-adapters
+langchain-google-genai
 
 # For jupyter notebook testing and web scraping in parsing API specs
 ipykernel
