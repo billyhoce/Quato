@@ -40,7 +40,9 @@ def get_zipline_overview() -> dict:
 
 @mcp.tool
 def get_function_or_class_details(function_class_names: list[str]) -> list[dict[str, Any]]:
-    """Given a list of function or class names (Same format as the keys when retrieving overviews), retrieve their detailed information, including description and parameters."""
+    """Given a list of function or class names 
+       (E.g ["docs/pipeline/built-in-factors/factors-dailyreturns", "docs/zipline/fee-models/set-borrow-fees-provider"]),
+       retrieve their detailed information, including description and parameters."""
     details_list = [
         combined_api_data[name] 
         for name in function_class_names 

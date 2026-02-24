@@ -85,8 +85,6 @@ async def main():
                     {"configurable": {"thread_id": "1"}}        
                 )
 
-                logger.info(f"Agent response: {agent_response}")
-
                 # Print agent response to stdio for user to respond to
                 print(f"Agent Response: {agent_response['messages'][-1].content}")
 

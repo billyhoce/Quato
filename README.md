@@ -58,9 +58,22 @@ Quato consists of four main modules that work together in an automated pipeline:
 
    # QuantRocket Configuration
    QUANTROCKET_URL=http://localhost:1969
+
+   # Langsmith Tracing (Optional - for debugging agent behavior)
+   LANGCHAIN_TRACING_V2=true
+   LANGCHAIN_API_KEY=your_langsmith_api_key
+   LANGCHAIN_PROJECT=quato-strategy-coder
    ```
 
-5. **Verify installation**:
+5. **Set up Langsmith tracing** (Optional):
+   Langsmith provides powerful tracing and debugging capabilities for the agent's decision-making process:
+   - Sign up at [smith.langchain.com](https://smith.langchain.com)
+   - Create a new project named "quato-strategy-coder" (or use your preferred name)
+   - Generate an API key from your account settings
+   - Add the API key to your `.env` file
+   - View traces at [smith.langchain.com](https://smith.langchain.com) while running the agent
+
+6. **Verify installation**:
    ```bash
    python -c "import hypothesis_generation, strategy_coder, backtesting_orchestrator, refinement_agent; print('Quato modules loaded successfully!')"
    ```
