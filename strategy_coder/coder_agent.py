@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import re
+from datetime import datetime, date
 
 from dotenv import load_dotenv
 from pathlib import Path
@@ -9,7 +11,9 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents import create_agent
 
-from constants import SYSTEM_PROMPT
+from strategy_coder.constants import SYSTEM_PROMPT
+from backtesting_orchestrator.orchestrator import BacktestingOrchestrator
+from models.backtest_models import BacktestConfig
 
 # Configure logging
 log_filename = f"coder_agent.log"
@@ -22,6 +26,27 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+def extract_python_code(text: str) -> str | None:
+    """Extract Python code from markdown code blocks or plain text."""
+    # Try to find code in markdown code blocks
+    code_block_pattern = r'```python\n(.*?)\n```'
+    matches = re.findall(code_block_pattern, text, re.DOTALL)
+    if matches:
+        return matches[0]
+    
+    # Try without language specifier
+    code_block_pattern = r'```\n(.*?)\n```'
+    matches = re.findall(code_block_pattern, text, re.DOTALL)
+    if matches:
+        return matches[0]
+    
+    # Check if the entire text looks like Python code
+    if 'import' in text and 'def ' in text:
+        return text
+    
+    return None
 
 
 async def main():
@@ -66,10 +91,14 @@ async def main():
             checkpointer=InMemorySaver()
         )
 
+        # Initialize backtesting orchestrator
+        logger.info("Initializing Backtesting Orchestrator...")
+        orchestrator = BacktestingOrchestrator()
+
         turn = 0
         while True:
             try:
-                user_query = input("Your input: ")
+                user_query = input("\nYour input: ")
                 if user_query.lower() == 'exit':
                     logger.info("User exited the application")
                     break
@@ -85,8 +114,53 @@ async def main():
                     {"configurable": {"thread_id": "1"}}        
                 )
 
-                # Print agent response to stdio for user to respond to
-                print(f"Agent Response: {agent_response['messages'][-1].content}")
+                response_content = agent_response['messages'][-1].content
+                
+                # Check if response contains Python code
+                extracted_code = extract_python_code(response_content)
+                
+                if extracted_code:
+                    print("\n" + "="*80)
+                    print("STRATEGY CODE GENERATED")
+                    print("="*80)
+                    print(extracted_code)
+                    print("="*80 + "\n")
+                    
+                    # Ask user if they want to backtest
+                    backtest_choice = input("Would you like to backtest this strategy? (yes/no): ").strip().lower()
+                    
+                    if backtest_choice in ['yes', 'y']:
+                        print("\n" + "="*80)
+                        print("RUNNING BACKTEST")
+                        print("="*80 + "\n")
+                        
+                        # Configure backtest
+                        config = BacktestConfig(
+                            start_date=date(2023, 1, 1),
+                            end_date=date(2023, 12, 31),
+                            capital_base=100000,
+                            filepath_or_buffer=None  # Will be set by orchestrator
+                        )
+                        
+                        # Run complete backtest workflow
+                        result = orchestrator.backtest_strategy_from_code(
+                            strategy_code=extracted_code,
+                            config=config,
+                            base_dir=base_dir
+                        )
+                        
+                        # Display results
+                        if result["success"]:
+                            print(f"\n✓ Strategy saved to: {result['strategy_path']}")
+                            print(f"✓ Backtest completed successfully!")
+                            print(f"✓ Results saved to: {result['results_file']}")
+                            print(f"✓ Tearsheet generated: {result['tearsheet_file']}\n")
+                        else:
+                            print(f"\n✗ {result['error_message']}\n")
+                            print("You can review the strategy code and try again.\n")
+                else:
+                    # No code detected, just print the response
+                    print(f"\nAgent Response: {response_content}\n")
 
                 turn += 1
             except KeyboardInterrupt:

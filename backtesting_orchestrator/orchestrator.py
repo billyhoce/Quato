@@ -6,6 +6,7 @@ import logging
 import os
 
 from pathlib import Path
+from datetime import datetime
 from quantrocket import zipline
 from typing import Dict, Any, Optional, List
 from models.backtest_models import BacktestConfig, BacktestResults, US_FREE_STOCK_BUNDLE
@@ -161,6 +162,96 @@ class BacktestingOrchestrator:
             path_to_results,
             output_path if output_path is not None else path_to_results.parent / "tearsheet.pdf"
         )
+    
+    def backtest_strategy_from_code(
+        self,
+        strategy_code: str,
+        config: BacktestConfig,
+        base_dir: Path,
+        strategy_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Complete end-to-end backtesting workflow from strategy code.
+        
+        Handles:
+        - Saving strategy to file
+        - Directory management
+        - Running backtest
+        - Generating tearsheet
+        - Logging all steps
+        - Error handling
+        
+        Args:
+            strategy_code: Python code for the strategy
+            config: BacktestConfig object with backtest parameters
+            base_dir: Base directory for saving files
+            strategy_name: Optional name for the strategy (auto-generated if None)
+            
+        Returns:
+            Dictionary with:
+                - success: bool
+                - strategy_path: str path to saved strategy file
+                - results_file: str path to backtest results CSV
+                - tearsheet_file: str path to tearsheet PDF
+                - error_message: str error message if failed
+        """
+        
+        result = {
+            "success": False,
+            "strategy_path": None,
+            "results_file": None,
+            "tearsheet_file": None,
+            "error_message": None
+        }
+        
+        try:
+            # Create directories
+            strategies_dir = base_dir / "strategies"
+            strategies_dir.mkdir(exist_ok=True)
+            results_dir = base_dir / "backtest_results"
+            results_dir.mkdir(exist_ok=True)
+            
+            # Generate timestamp and filenames
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            if strategy_name:
+                filename = f"{strategy_name}_{timestamp}.py"
+            else:
+                filename = f"strategy_{timestamp}.py"
+            
+            strategy_path = strategies_dir / filename
+            results_file = results_dir / f"backtest_{timestamp}.csv"
+            tearsheet_file = results_dir / f"tearsheet_{timestamp}.pdf"
+            
+            # Save strategy code
+            logging.info(f"Saving strategy to: {strategy_path}")
+            with open(strategy_path, 'w') as f:
+                f.write(strategy_code)
+            result["strategy_path"] = str(strategy_path)
+            
+            # Update config with results file path if not set
+            if config.filepath_or_buffer is None:
+                config.filepath_or_buffer = str(results_file)
+            
+            # Run backtest
+            logging.info(f"Starting backtest for {filename}...")
+            self.run_backtest(str(strategy_path), config)
+            result["results_file"] = str(config.filepath_or_buffer)
+            logging.info(f"Backtest completed. Results saved to: {config.filepath_or_buffer}")
+            
+            # Generate tearsheet
+            logging.info("Generating tearsheet...")
+            self.generate_tear_sheet(Path(config.filepath_or_buffer), str(tearsheet_file))
+            result["tearsheet_file"] = str(tearsheet_file)
+            logging.info(f"Tearsheet generated: {tearsheet_file}")
+            
+            result["success"] = True
+            return result
+            
+        except Exception as e:
+            error_msg = f"Backtest failed: {str(e)}"
+            logging.error(error_msg, exc_info=True)
+            result["error_message"] = error_msg
+            return result
     
     def compare_strategies(
         self,

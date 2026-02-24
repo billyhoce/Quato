@@ -15,3 +15,6 @@ langchain-google-genai
 # For jupyter notebook testing and web scraping in parsing API specs
 ipykernel
 beautifulsoup4
+
+# Server
+fastapi[standard]
