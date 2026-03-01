@@ -30,9 +30,10 @@ Ordering:
 - Be aware that Zipline does not prevent negative cash balances.
 
 Bundles and configuration:
-- Specify the data bundle using a module-level BUNDLE constant unless overridden at runtime.
-- Specify DATA_FREQUENCY only when it differs from the bundle’s default.
-- Do not set BUNDLE or DATA_FREQUENCY by modifying imported modules.
+- There are two data bundles available:
+- "usstock-free-1min": minute price data for the following stocks Alcoa, Apple, Exxon Mobil, Home Depot, Johnson & Johnson, Krisy Kreme Doughnuts, Monsanto, Microsoft, SPDR S&P 500 ETF
+- "usstock-learn-1d": daily price data for all US stocks for the years 2007-2011
+- If the user wants to use securities outside of these bundles, tell them that only these bundles are available.
 
 Code structure and quality:
 - Include concise docstrings for initialize(), before_trading_start(), and scheduled functions.

@@ -9,7 +9,12 @@ from pathlib import Path
 from datetime import datetime
 from quantrocket import zipline
 from typing import Dict, Any, Optional, List
-from models.backtest_models import BacktestConfig, BacktestResults, US_FREE_STOCK_BUNDLE
+from models.backtest_models import (
+    BacktestConfig,
+    BacktestResults,
+    US_FREE_STOCK_BUNDLE_MIN,
+    US_FREE_STOCK_BUNDLE_DAILY
+)
 from backtesting_orchestrator.utils import (
     upload_file_to_github,
     pull_files_from_github_to_quantrocket,
@@ -19,6 +24,7 @@ from backtesting_orchestrator.utils import (
 
 # Constants
 INGESTION_POLL_INTERVAL = 20  # seconds
+FREE_DATA_BUNDLES = [US_FREE_STOCK_BUNDLE_MIN, US_FREE_STOCK_BUNDLE_DAILY]
 
 class BacktestingOrchestrator:
     """Orchestrates strategy backtesting with QuantRocket.
@@ -36,6 +42,7 @@ class BacktestingOrchestrator:
         if os.environ.get("HOUSTON_URL") is None:
             raise ValueError("QuantRocket URL must be set in the environment as 'HOUSTON_URL'.")
         self.results_cache: Dict[str, BacktestResults] = {}
+        self.prepare_free_data()
 
     def check_ingestion_status(self, bundle_code: str) -> bool:
         """Check if the specified data bundle is ingested and ready for backtesting.
@@ -51,18 +58,7 @@ class BacktestingOrchestrator:
             raise ValueError(f"Bundle {bundle_code} does not exist.")
         return existing_bundles[bundle_code]
 
-    def _create_bundle_if_needed(self, bundle_code: str) -> None:
-        """Create a bundle if it doesn't exist.
-        
-        Args:
-            bundle_code: The code of the data bundle to create
-        """
-        existing_bundles = zipline.list_bundles()
-        if bundle_code not in existing_bundles:
-            zipline.create_usstock_bundle(code=bundle_code, free=True)
-            logging.info(f"Created {bundle_code} data bundle.")
-
-    def _ingest_bundle_if_needed(self, bundle_code: str) -> None:
+    def _ingest_bundle_and_wait(self, bundle_code: str) -> None:
         """Ingest a bundle if it hasn't been ingested yet.
         
         Args:
@@ -78,23 +74,24 @@ class BacktestingOrchestrator:
                 poll_interval=INGESTION_POLL_INTERVAL
             )
             logging.info(f"Ingestion of {bundle_code} completed.")
+        else:
+            logging.info(f"{bundle_code} data bundle is already ingested.")
     
     def prepare_free_data(self) -> None:
         """Prepare free quantrocket data bundles for backtesting."""
         existing_bundles = zipline.list_bundles()
         
-        # Check if already ingested
-        if US_FREE_STOCK_BUNDLE in existing_bundles and existing_bundles[US_FREE_STOCK_BUNDLE]:
-            logging.info(f"{US_FREE_STOCK_BUNDLE} data bundle already ingested.")
-            return
-        
-        # Create bundle if needed
-        self._create_bundle_if_needed(US_FREE_STOCK_BUNDLE)
-        
-        # Ingest bundle if needed
-        self._ingest_bundle_if_needed(US_FREE_STOCK_BUNDLE)
-
-
+        for bundle_code in FREE_DATA_BUNDLES:
+            if bundle_code in existing_bundles and existing_bundles[bundle_code]:
+                logging.info(f"{bundle_code} data bundle already ingested.")
+            else:
+                if bundle_code == US_FREE_STOCK_BUNDLE_MIN:
+                    zipline.create_usstock_bundle(code=bundle_code, free=True)
+                elif bundle_code == US_FREE_STOCK_BUNDLE_DAILY:
+                    zipline.create_usstock_bundle(code=bundle_code, learn=True)
+                logging.info(f"Created {bundle_code} data bundle.")
+                self._ingest_bundle_and_wait(bundle_code)
+    
     # def move_strategy_file_into_zipline_dir(self, strategy_file_name: str) -> None:
     #     """Move a strategy file into the QuantRocket Zipline strategies directory.
     #     Uses quantrocket satelite api to run the script on the houston instance.

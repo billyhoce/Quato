@@ -2,7 +2,9 @@ from pydantic import BaseModel
 from datetime import date
 from typing import Dict, Any, Optional
 
-US_FREE_STOCK_BUNDLE = "usstock-free-1min"
+US_FREE_STOCK_BUNDLE_MIN = "usstock-free-1min"
+US_FREE_STOCK_BUNDLE_DAILY = "usstock-learn-1d"
+
 
 class BacktestConfig(BaseModel):
     """
@@ -20,7 +22,7 @@ class BacktestConfig(BaseModel):
     """
     data_frequency: str = None
     capital_base: float = None
-    bundle: str = US_FREE_STOCK_BUNDLE
+    bundle: str = None
     start_date: date = None
     end_date: date = None
     progress: str = "M"
