@@ -11,7 +11,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents import create_agent
 
-from strategy_coder.constants import SYSTEM_PROMPT
+from services.constants import SYSTEM_PROMPT
 from services.strategy_manager import StrategyManager
 
 logger = logging.getLogger(__name__)
@@ -161,7 +161,7 @@ class AgentService:
                 {"configurable": {"thread_id": session_id}}
             )
             
-            response_content = agent_response['messages'][-1].content
+            response_content = agent_response['messages'][-1].content[0]["text"]
 
             # Retry once if response is empty
             if not response_content.strip():

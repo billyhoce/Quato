@@ -1,0 +1,7 @@
+Sid,Symbol,Exchange,Country,Currency,SecType,Etf,Timezone,Name,PriceMagnifier,Multiplier,Delisted,DateDelisted,LastTradeDate,RolloverDate
+FIBBG000B9XRY4,AAPL,XNAS,US,USD,STK,0,America/New_York,"APPLE INC",1,1,0,,,
+FIBBG000BFWKC0,MON,XNYS,US,USD,STK,0,America/New_York,"MONSANTO CO",1,1,1,2018-06-06,,
+FIBBG000BKZB36,HD,XNYS,US,USD,STK,0,America/New_York,"HOME DEPOT INC",1,1,0,,,
+FIBBG000BMHYD1,JNJ,XNYS,US,USD,STK,0,America/New_York,"JOHNSON & JOHNSON",1,1,0,,,
+FIBBG000BPH459,MSFT,XNAS,US,USD,STK,0,America/New_York,"MICROSOFT CORP",1,1,0,,,
+FIBBG00B3T3HD3,AA,XNYS,US,USD,STK,0,America/New_York,"ALCOA CORP",1,1,0,,,
