@@ -4,6 +4,10 @@ quantrocket-client
 dotenv
 GitPython
 
+# Redis for distributed task queue
+redis>=5.0.0
+redis[hiredis]
+
 # MCP dependencies
 mcp
 

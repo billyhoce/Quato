@@ -20,7 +20,6 @@ from backtesting_orchestrator.utils import (
     upload_file_to_github,
     pull_files_from_github_to_quantrocket,
     wait_for_ingestion,
-    generate_markdown_report
 )
 
 # Load environment variables
@@ -169,7 +168,8 @@ class BacktestingOrchestrator:
         strategy_code: str,
         config: BacktestConfig,
         base_dir: Path,
-        strategy_name: Optional[str] = None
+        strategy_name: Optional[str] = None,
+        task_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Complete end-to-end backtesting workflow from strategy code.
         
@@ -186,6 +186,7 @@ class BacktestingOrchestrator:
             config: BacktestConfig object with backtest parameters
             base_dir: Base directory for saving files
             strategy_name: Optional name for the strategy (auto-generated if None)
+            task_id: Optional task ID to use in filenames (improves traceability)
             
         Returns:
             Dictionary with:
@@ -211,17 +212,20 @@ class BacktestingOrchestrator:
             results_dir = base_dir / "backtest_results"
             results_dir.mkdir(exist_ok=True)
             
-            # Generate timestamp and filenames
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Generate file identifier (use task_id if provided, otherwise timestamp)
+            if task_id:
+                file_id = task_id
+            else:
+                file_id = datetime.now().strftime("%Y%m%d_%H%M%S")
             
             if strategy_name:
-                filename = f"{strategy_name}_{timestamp}.py"
+                filename = f"{strategy_name}_{file_id}.py"
             else:
-                filename = f"strategy_{timestamp}.py"
+                filename = f"strategy_{file_id}.py"
             
             strategy_path = strategies_dir / filename
-            results_file = results_dir / f"backtest_{timestamp}.csv"
-            tearsheet_file = results_dir / f"tearsheet_{timestamp}.pdf"
+            results_file = results_dir / f"backtest_{file_id}.csv"
+            tearsheet_file = results_dir / f"tearsheet_{file_id}.pdf"
             
             # Save strategy code
             logging.info(f"Saving strategy to: {strategy_path}")

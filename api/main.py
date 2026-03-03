@@ -3,17 +3,17 @@ import logging
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 from datetime import date
 
 from fastapi import FastAPI, HTTPException, Header
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from services.agent_service import AgentService
 from services.strategy_manager import StrategyManager
-from backtesting_orchestrator.orchestrator import BacktestingOrchestrator
+from services.backtest_queue import BacktestQueue
+from services.backtest_worker import BacktestWorker
 from models.backtest_models import BacktestConfig
 
 # Load environment variables
@@ -29,21 +29,45 @@ logger = logging.getLogger(__name__)
 # Global services
 strategy_manager = StrategyManager()
 agent_service = AgentService(strategy_manager)
-backtest_orchestrator = BacktestingOrchestrator()
-
-# Backtest tracking (in-memory for now)
-backtest_results: Dict[str, dict] = {}
-session_backtest_history: Dict[str, List[str]] = {}
+backtest_queue = BacktestQueue()
+backtest_worker: Optional[BacktestWorker] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize services on startup."""
-    logger.info("Initializing AgentService...")
+    global backtest_worker
+    
+    logger.info("Initializing services...")
+    
+    # Initialize agent service
     await agent_service.initialize()
+    
+    # Initialize Redis connection
+    await backtest_queue.connect()
+    
+    # Mark any running tasks as failed (startup recovery)
+    failed_count = await backtest_queue.mark_running_as_failed()
+    if failed_count > 0:
+        logger.info(f"Marked {failed_count} orphaned tasks as failed")
+    
+    # Start background worker
+    base_dir = Path(__file__).parent.parent
+    backtest_worker = BacktestWorker(backtest_queue, base_dir)
+    await backtest_worker.start()
+    
     logger.info("API ready!")
+    
     yield
+    
     logger.info("Shutting down...")
+    
+    # Stop background worker
+    if backtest_worker:
+        await backtest_worker.stop()
+    
+    # Close Redis connection
+    await backtest_queue.close()
 
 
 app = FastAPI(
@@ -140,7 +164,7 @@ async def start_backtest(
 ):
     """Start a backtest with the current strategy.
     
-    Returns a task_id to poll for results.
+    Returns immediately with a task_id to poll for results.
     """
     if not x_session_id:
         raise HTTPException(status_code=400, detail="Session ID required")
@@ -151,67 +175,60 @@ async def start_backtest(
     
     strategy_code = strategy_manager.get_strategy(x_session_id)
     
+    # Create and validate config
+    config = BacktestConfig(
+        start_date=request.start_date,
+        end_date=request.end_date,
+        capital_base=request.capital_base,
+        filepath_or_buffer=None
+    )
+    
+    # Validate configuration before queuing
+    try:
+        config.validate_config()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid configuration: {str(e)}")
+    
     # Generate task ID
     task_id = str(uuid.uuid4())
     
-    # Store initial status
-    backtest_results[task_id] = {
-        "status": "running",
-        "session_id": x_session_id
-    }
-    
-    # Track in session history
-    if x_session_id not in session_backtest_history:
-        session_backtest_history[x_session_id] = []
-    session_backtest_history[x_session_id].append(task_id)
-    
-    # Run backtest asynchronously (for now, run synchronously)
-    # In production, use Celery or similar for true async execution
     try:
-        base_dir = Path(__file__).parent.parent
-        config = BacktestConfig(
-            start_date=request.start_date,
-            end_date=request.end_date,
-            capital_base=request.capital_base,
-            filepath_or_buffer=None
-        )
-        
-        result = backtest_orchestrator.backtest_strategy_from_code(
+        # Create task in Redis
+        await backtest_queue.create_task(
+            task_id=task_id,
+            session_id=x_session_id,
             strategy_code=strategy_code,
-            config=config,
-            base_dir=base_dir
+            config_dict=config.model_dump(mode='json')
         )
         
-        # Update result
-        backtest_results[task_id].update({
-            "status": "complete" if result["success"] else "failed",
-            **result
-        })
+        # Add to session history
+        await backtest_queue.add_to_session(x_session_id, task_id)
+        
+        # Enqueue for processing
+        await backtest_queue.enqueue_task(task_id)
+        
+        logger.info(f"Queued backtest task {task_id} for session {x_session_id}")
         
         return BacktestResponse(
             task_id=task_id,
-            status=backtest_results[task_id]["status"],
-            message="Backtest completed" if result["success"] else f"{result.get('error_message', 'Unknown error')}"
+            status="queued",
+            message="Backtest queued successfully"
         )
         
     except Exception as e:
-        logger.error(f"Backtest error: {str(e)}", exc_info=True)
-        backtest_results[task_id] = {
-            "status": "failed",
-            "error_message": str(e),
-            "session_id": x_session_id
-        }
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to queue backtest: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to queue backtest: {str(e)}")
 
 
 @app.get("/api/backtest/{task_id}", response_model=BacktestResultResponse)
 async def get_backtest_result(task_id: str):
     """Get the status and results of a backtest."""
-    if task_id not in backtest_results:
+    task_data = await backtest_queue.get_task(task_id)
+    
+    if not task_data:
         raise HTTPException(status_code=404, detail="Backtest not found")
     
-    result = backtest_results[task_id]
-    return BacktestResultResponse(task_id=task_id, **result)
+    return BacktestResultResponse(task_id=task_id, **task_data)
 
 
 @app.get("/api/backtest/history", response_model=BacktestHistoryResponse)
@@ -219,18 +236,10 @@ async def get_backtest_history(
     x_session_id: str = Header(default=None)
 ):
     """Get all backtests for the current session."""
-    if not x_session_id or x_session_id not in session_backtest_history:
+    if not x_session_id:
         return BacktestHistoryResponse(backtests=[])
     
-    task_ids = session_backtest_history[x_session_id]
-    backtests = []
-    
-    for task_id in task_ids:
-        if task_id in backtest_results:
-            result = backtest_results[task_id].copy()
-            result["task_id"] = task_id
-            backtests.append(result)
-    
+    backtests = await backtest_queue.get_session_tasks(x_session_id)
     return BacktestHistoryResponse(backtests=backtests)
 
 

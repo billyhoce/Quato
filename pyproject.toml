@@ -22,5 +22,6 @@ dependencies = [
     "pandas>=2.3.3",
     "pydantic>=2.12.5",
     "quantrocket-client>=2.11.0.0",
+    "redis[hiredis]>=5.0.0",
     "uvicorn[standard]>=0.40.0",
 ]
