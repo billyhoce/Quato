@@ -7,6 +7,7 @@ import os
 
 from pathlib import Path
 from datetime import datetime
+from dotenv import load_dotenv
 from quantrocket import zipline
 from typing import Dict, Any, Optional, List
 from models.backtest_models import (
@@ -21,6 +22,9 @@ from backtesting_orchestrator.utils import (
     wait_for_ingestion,
     generate_markdown_report
 )
+
+# Load environment variables
+load_dotenv()
 
 # Constants
 INGESTION_POLL_INTERVAL = 20  # seconds

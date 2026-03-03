@@ -9,11 +9,15 @@ from datetime import date
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
 from services.agent_service import AgentService
 from services.strategy_manager import StrategyManager
 from backtesting_orchestrator.orchestrator import BacktestingOrchestrator
 from models.backtest_models import BacktestConfig
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -187,7 +191,7 @@ async def start_backtest(
         return BacktestResponse(
             task_id=task_id,
             status=backtest_results[task_id]["status"],
-            message="Backtest completed" if result["success"] else "Backtest failed"
+            message="Backtest completed" if result["success"] else f"{result.get('error_message', 'Unknown error')}"
         )
         
     except Exception as e:
