@@ -1,0 +1,28 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: quato-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: quato-minio
+    ports:
+      - "9000:9000"   # S3 API — used by the app and boto3
+      - "9001:9001"   # MinIO web console (http://localhost:9001)
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  minio_data:

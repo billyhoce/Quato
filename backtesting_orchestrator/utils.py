@@ -20,7 +20,7 @@ def get_file_sha_from_github(path_from_repo_root: str) -> Optional[str]:
     response = requests.get(
         f"https://api.github.com/repos/{os.getenv('REPO_PATH')}/contents/{path_from_repo_root}",
         headers={
-            "Authorization": f"BEARER {os.getenv('GITHUB_TOKEN')}",
+            "Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28"
         }
@@ -76,7 +76,7 @@ def upload_file_to_github(file_path: str, commit_message: str, upload_location:s
     response = requests.put(
         f"https://api.github.com/repos/{os.getenv('REPO_PATH')}/contents/{path_from_repo_root}",
         headers={
-            "Authorization": f"BEARER {os.getenv('GITHUB_TOKEN')}",
+            "Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28"
         },
@@ -170,32 +170,3 @@ def wait_for_ingestion(
         time.sleep(poll_interval)
 
 
-def generate_markdown_report(
-    strategy_id: str,
-    total_return: float,
-    sharpe_ratio: float,
-    max_drawdown: float,
-    output_path: Optional[str] = None
-) -> str:
-    """Generate a markdown backtest report.
-    
-    Args:
-        strategy_id: ID of the strategy
-        total_return: Total return percentage
-        sharpe_ratio: Sharpe ratio
-        max_drawdown: Maximum drawdown percentage
-        output_path: Optional path to save the report
-        
-    Returns:
-        Report as a markdown string
-    """
-    report = f"# Backtest Report: {strategy_id}\n\n"
-    report += f"Total Return: {total_return:.2%}\n"
-    report += f"Sharpe Ratio: {sharpe_ratio:.2f}\n"
-    report += f"Max Drawdown: {max_drawdown:.2%}\n"
-    
-    if output_path:
-        with open(output_path, 'w') as f:
-            f.write(report)
-    
-    return report

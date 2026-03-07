@@ -1,275 +1,215 @@
-"""Backtesting Orchestrator for QuantRocket Strategies.
-
-This module orchestrates the execution and analysis of strategy backtests.
-"""
+"""Backtesting Orchestrator for QuantRocket Strategies."""
 import logging
 import os
-
-from pathlib import Path
+import time
 from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional, Tuple
+
 from dotenv import load_dotenv
 from quantrocket import zipline
-from typing import Dict, Any, Optional, List
-from models.backtest_models import (
-    BacktestConfig,
-    BacktestResults,
-    US_FREE_STOCK_BUNDLE_MIN,
-    US_FREE_STOCK_BUNDLE_DAILY
-)
+
+from models.backtest_models import BacktestConfig, BacktestResults
 from backtesting_orchestrator.utils import (
     upload_file_to_github,
     pull_files_from_github_to_quantrocket,
     wait_for_ingestion,
 )
 
-# Load environment variables
+if TYPE_CHECKING:
+    from services.object_store import ObjectStoreService
+
 load_dotenv()
 
 # Constants
 INGESTION_POLL_INTERVAL = 20  # seconds
+US_FREE_STOCK_BUNDLE_MIN = "usstock-free-1min"
+US_FREE_STOCK_BUNDLE_DAILY = "usstock-learn-1d"
 FREE_DATA_BUNDLES = [US_FREE_STOCK_BUNDLE_MIN, US_FREE_STOCK_BUNDLE_DAILY]
 
+
 class BacktestingOrchestrator:
-    """Orchestrates strategy backtesting with QuantRocket.
-    
-    This class manages the full backtesting lifecycle including data preparation,
-    execution, performance analysis, and result reporting.
-    """
-    
+    """Orchestrates the full strategy backtesting lifecycle with QuantRocket."""
+
     def __init__(self) -> None:
-        """Initialize the backtesting orchestrator.
-        
-        Args:
-            quantrocket_url: URL of the QuantRocket instance (if None, uses default)
-        """
         if os.environ.get("HOUSTON_URL") is None:
-            raise ValueError("QuantRocket URL must be set in the environment as 'HOUSTON_URL'.")
-        self.results_cache: Dict[str, BacktestResults] = {}
+            raise ValueError(
+                "QuantRocket URL must be set in the environment as 'HOUSTON_URL'."
+            )
         self.prepare_free_data()
 
+    # -------------------------------------------------------------------------
+    # Data bundle preparation
+    # -------------------------------------------------------------------------
+
     def check_ingestion_status(self, bundle_code: str) -> bool:
-        """Check if the specified data bundle is ingested and ready for backtesting.
-        
-        Args:
-            bundle_code: The code of the data bundle to check
-            
-        Returns:
-            True if bundle is ingested, False otherwise
-        """
         existing_bundles = zipline.list_bundles()
         if bundle_code not in existing_bundles:
             raise ValueError(f"Bundle {bundle_code} does not exist.")
         return existing_bundles[bundle_code]
 
     def _ingest_bundle_and_wait(self, bundle_code: str) -> None:
-        """Ingest a bundle if it hasn't been ingested yet.
-        
-        Args:
-            bundle_code: The code of the data bundle to ingest
-        """
         existing_bundles = zipline.list_bundles()
         if not existing_bundles.get(bundle_code):
             zipline.ingest_bundle(bundle_code)
-            logging.info(f"Ingesting {bundle_code} data bundle.")
+            logging.info("Ingesting %s data bundle.", bundle_code)
             wait_for_ingestion(
                 self.check_ingestion_status,
                 bundle_code,
-                poll_interval=INGESTION_POLL_INTERVAL
+                poll_interval=INGESTION_POLL_INTERVAL,
             )
-            logging.info(f"Ingestion of {bundle_code} completed.")
+            logging.info("Ingestion of %s completed.", bundle_code)
         else:
-            logging.info(f"{bundle_code} data bundle is already ingested.")
-    
+            logging.info("%s data bundle is already ingested.", bundle_code)
+
     def prepare_free_data(self) -> None:
-        """Prepare free quantrocket data bundles for backtesting."""
+        """Prepare free QuantRocket data bundles for backtesting."""
         existing_bundles = zipline.list_bundles()
-        
         for bundle_code in FREE_DATA_BUNDLES:
-            if bundle_code in existing_bundles and existing_bundles[bundle_code]:
-                logging.info(f"{bundle_code} data bundle already ingested.")
+            if existing_bundles.get(bundle_code):
+                logging.info("%s data bundle already ingested.", bundle_code)
             else:
                 if bundle_code == US_FREE_STOCK_BUNDLE_MIN:
                     zipline.create_usstock_bundle(code=bundle_code, free=True)
                 elif bundle_code == US_FREE_STOCK_BUNDLE_DAILY:
                     zipline.create_usstock_bundle(code=bundle_code, learn=True)
-                logging.info(f"Created {bundle_code} data bundle.")
+                logging.info("Created %s data bundle.", bundle_code)
                 self._ingest_bundle_and_wait(bundle_code)
-    
-    # def move_strategy_file_into_zipline_dir(self, strategy_file_name: str) -> None:
-    #     """Move a strategy file into the QuantRocket Zipline strategies directory.
-    #     Uses quantrocket satelite api to run the script on the houston instance.
-        
-    #     Args:
-    #         strategy_file_name: Name of the strategy file to move
-    #     """
-    #     script = f"mv {strategy_file_name} zipline/{strategy_file_name}"
-    #     satellite.execute_command(script)
 
+    # -------------------------------------------------------------------------
+    # Strategy loading
+    # -------------------------------------------------------------------------
 
     def _load_strategy(self, strategy_path: str) -> None:
-        """Load strategy code into quantrocket using commit-pull workflow
-        
-        Args:
-            strategy_path: The file path to the strategy code
-        """
+        """Upload strategy file to GitHub and pull it into QuantRocket."""
         strategy_name = os.path.basename(strategy_path)
         upload_file_to_github(
             file_path=strategy_path,
             commit_message=f"Uploading strategy {strategy_name}",
-            upload_location="zipline"
+            upload_location="zipline",
         )
         pull_files_from_github_to_quantrocket(
             repo=os.getenv("REPO_PATH"),
-            skip_existing=True
+            replace=True,
         )
-        # self.move_strategy_file_into_zipline_dir(strategy_name)
 
+    # -------------------------------------------------------------------------
+    # Backtest execution
+    # -------------------------------------------------------------------------
 
+    def run_backtest(self, strategy_filename: str, run_config: BacktestConfig) -> None:
+        """Upload the strategy and execute the backtest via QuantRocket.
 
-    def run_backtest(self, strategy_filename: str, config: BacktestConfig) -> None:
-        """Execute a strategy backtest.
-        
         Args:
-            strategy_filename: The path to the strategy code to backtest
-            config: Backtest configuration
-            
-        Returns:
-            None
+            strategy_filename: Absolute path to the strategy .py file.
+            run_config:        BacktestConfig with filepath_or_buffer already set.
         """
         self._load_strategy(strategy_filename)
-        strategy = os.path.basename(strategy_filename).strip(".py")
+        strategy = os.path.basename(strategy_filename).removesuffix(".py")
+        # mode='json' serialises date → ISO string; exclude_none skips unset optionals.
+        zipline.backtest(strategy, **run_config.model_dump(mode="json", exclude_none=True))
 
-        zipline.backtest(strategy,
-                         **config.model_dump(exclude_unset=True))
-
-        
     def generate_tear_sheet(
         self,
         path_to_results: Path,
-        output_path: Optional[str] = None
+        output_path: Optional[str] = None,
     ) -> None:
-        """Uses pyfolio in Quantrocket to generate tear sheet.
+        """Generate a pyfolio tearsheet via QuantRocket.
 
         Args:
-            path_to_results: Path to the backtest results file
-            output_path: Optional path to save the tear sheet
+            path_to_results: Local path to the backtest results CSV.
+            output_path:     Where to write the PDF (defaults to same dir).
         """
-        with open(path_to_results, 'r') as f:
-            data = f.read()
-            if not data:
-                raise ValueError(f"Backtest results file {path_to_results} is empty.")
-        return zipline.create_tearsheet(
+        with open(path_to_results, "r") as f:
+            if not f.read():
+                raise ValueError(
+                    f"Backtest results file {path_to_results} is empty."
+                )
+        zipline.create_tearsheet(
             path_to_results,
-            output_path if output_path is not None else path_to_results.parent / "tearsheet.pdf"
+            output_path if output_path is not None else path_to_results.parent / "tearsheet.pdf",
         )
-    
+
+    # -------------------------------------------------------------------------
+    # End-to-end workflow
+    # -------------------------------------------------------------------------
+
     def backtest_strategy_from_code(
         self,
         strategy_code: str,
         config: BacktestConfig,
         base_dir: Path,
-        strategy_name: Optional[str] = None,
-        task_id: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Complete end-to-end backtesting workflow from strategy code.
-        
-        Handles:
-        - Saving strategy to file
-        - Directory management
-        - Running backtest
-        - Generating tearsheet
-        - Logging all steps
-        - Error handling
-        
+        object_store: "ObjectStoreService",
+        task_id: Optional[str] = None,
+    ) -> Tuple[BacktestResults, str]:
+        """Run a full backtest from raw strategy code.
+
+        Steps:
+          1. Write strategy to a timestamped temp file.
+          2. Upload to GitHub → pull into QuantRocket.
+          3. Run zipline.backtest(); results CSV saved locally.
+          4. Extract summary metrics via BacktestResults.from_csv().
+          5. Upload raw CSV to the object store.
+          6. Delete all local intermediary files.
+
         Args:
-            strategy_code: Python code for the strategy
-            config: BacktestConfig object with backtest parameters
-            base_dir: Base directory for saving files
-            strategy_name: Optional name for the strategy (auto-generated if None)
-            task_id: Optional task ID to use in filenames (improves traceability)
-            
+            strategy_code: Python source of the trading strategy.
+            config:        BacktestConfig (filepath_or_buffer left None here;
+                           set internally via model_copy so the input is not mutated).
+            base_dir:      Root directory for temp strategy / results files.
+            object_store:  ObjectStoreService for CSV persistence.
+            task_id:       Optional task ID used as the object store namespace.
+
         Returns:
-            Dictionary with:
-                - success: bool
-                - strategy_path: str path to saved strategy file
-                - results_file: str path to backtest results CSV
-                - tearsheet_file: str path to tearsheet PDF
-                - error_message: str error message if failed
+            Tuple of (BacktestResults, csv_object_key).
+
+        Raises:
+            Exception: Propagated to the caller on any failure; local files are
+                       always cleaned up via the finally block.
         """
-        
-        result = {
-            "success": False,
-            "strategy_path": None,
-            "results_file": None,
-            "tearsheet_file": None,
-            "error_message": None
-        }
-        
+        strategies_dir = base_dir / "strategies"
+        strategies_dir.mkdir(exist_ok=True)
+        results_dir = base_dir / "backtest_results"
+        results_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        strategy_path = strategies_dir / f"strategy_{timestamp}.py"
+        results_file = results_dir / f"backtest_{timestamp}.csv"
+
+        strategy_path.write_text(strategy_code)
+        logging.info("Saved strategy to %s", strategy_path)
+
         try:
-            # Create directories
-            strategies_dir = base_dir / "strategies"
-            strategies_dir.mkdir(exist_ok=True)
-            results_dir = base_dir / "backtest_results"
-            results_dir.mkdir(exist_ok=True)
-            
-            # Generate file identifier (use task_id if provided, otherwise timestamp)
-            if task_id:
-                file_id = task_id
-            else:
-                file_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            if strategy_name:
-                filename = f"{strategy_name}_{file_id}.py"
-            else:
-                filename = f"strategy_{file_id}.py"
-            
-            strategy_path = strategies_dir / filename
-            results_file = results_dir / f"backtest_{file_id}.csv"
-            tearsheet_file = results_dir / f"tearsheet_{file_id}.pdf"
-            
-            # Save strategy code
-            logging.info(f"Saving strategy to: {strategy_path}")
-            with open(strategy_path, 'w') as f:
-                f.write(strategy_code)
-            result["strategy_path"] = str(strategy_path)
-            
-            # Update config with results file path if not set
-            if config.filepath_or_buffer is None:
-                config.filepath_or_buffer = str(results_file)
-            
-            # Run backtest
-            logging.info(f"Starting backtest for {filename}...")
-            self.run_backtest(str(strategy_path), config)
-            result["results_file"] = str(config.filepath_or_buffer)
-            logging.info(f"Backtest completed. Results saved to: {config.filepath_or_buffer}")
-            
-            # Generate tearsheet
-            logging.info("Generating tearsheet...")
-            self.generate_tear_sheet(Path(config.filepath_or_buffer), str(tearsheet_file))
-            result["tearsheet_file"] = str(tearsheet_file)
-            logging.info(f"Tearsheet generated: {tearsheet_file}")
-            
-            result["success"] = True
-            return result
-            
-        except Exception as e:
-            error_msg = f"Backtest failed: {str(e)}"
-            logging.error(error_msg, exc_info=True)
-            result["error_message"] = error_msg
-            return result
-    
-    def compare_strategies(
-        self,
-        strategy_ids: List[str]
-    ) -> Dict[str, Any]:
-        """Compare performance of multiple strategies.
-        
-        Args:
-            strategy_ids: List of strategy IDs to compare
-            
-        Returns:
-            Dictionary containing comparison results
-        """
-        # Placeholder implementation
-        print(f"Comparing {len(strategy_ids)} strategies")
-        return {}
+            # Build a run config with the results path set — don't mutate input.
+            run_config = config.model_copy(
+                update={"filepath_or_buffer": str(results_file)}
+            )
+
+            logging.info("Starting backtest (%s)...", strategy_path.name)
+            start_time = time.time()
+            self.run_backtest(str(strategy_path), run_config)
+            execution_time = time.time() - start_time
+            logging.info("Backtest completed in %.1fs", execution_time)
+
+            # Extract summary metrics from the results CSV.
+            results = BacktestResults.from_csv(str(results_file), execution_time)
+            logging.info(
+                "Metrics: return=%.2f%%, sharpe=%.2f, max_dd=%.2f%%",
+                results.total_return * 100,
+                results.sharpe_ratio,
+                results.max_drawdown * 100,
+            )
+
+            # Upload the raw CSV to the object store for later download.
+            store_key = task_id or timestamp
+            csv_object_key = object_store.upload_backtest_csv(store_key, str(results_file))
+
+            return results, csv_object_key
+
+        finally:
+            # Always clean up local files regardless of success or failure.
+            for path in (strategy_path, results_file):
+                try:
+                    path.unlink(missing_ok=True)
+                except Exception as exc:
+                    logging.warning("Failed to delete %s: %s", path, exc)

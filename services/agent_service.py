@@ -3,12 +3,11 @@ import asyncio
 import logging
 import re
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents import create_agent
 
 from services.constants import SYSTEM_PROMPT
@@ -33,14 +32,15 @@ class AgentService:
         self.strategy_manager = strategy_manager
         self.agent = None
         self.resources = {}
-        self.session_turns: Dict[str, int] = {}  # Track conversation turns per session
         self._initialized = False
         logger.info("AgentService created")
     
-    async def initialize(self):
+    async def initialize(self, checkpointer):
         """Initialize the agent with MCP tools and resources.
-        
-        This must be called before using the service.
+
+        Args:
+            checkpointer: LangGraph checkpoint backend (e.g. AsyncRedisSaver).
+                          Must outlive this service — the caller owns its lifecycle.
         """
         if self._initialized:
             logger.info("AgentService already initialized")
@@ -80,12 +80,27 @@ class AgentService:
         self.agent = create_agent(
             model=model,
             tools=tools,
-            checkpointer=InMemorySaver()
+            checkpointer=checkpointer
         )
         
         self._initialized = True
         logger.info("AgentService initialized successfully")
     
+    def _extract_text(self, content) -> str:
+        """Normalise agent response content to a plain string.
+
+        LangGraph message content can be a plain string (simple text response)
+        or a list of content blocks (multimodal / tool-use responses). Both
+        paths now feed into the same extraction so downstream parsing is
+        consistent.
+        """
+        if isinstance(content, list):
+            return "".join(
+                block.get("text", "") if isinstance(block, dict) else str(block)
+                for block in content
+            )
+        return str(content)
+
     def _parse_agent_response(self, content) -> tuple[str, Optional[str]]:
         """Parse agent response to extract explanation and code separately.
         
@@ -138,9 +153,10 @@ class AgentService:
             raise RuntimeError("AgentService not initialized. Call initialize() first.")
         
         try:
-            # Track conversation turn
-            turn = self.session_turns.get(session_id, 0)
-            
+            # Atomically get the current turn and increment the counter in Redis.
+            # Returns 0 on the first message for this session, 1 on the second, etc.
+            turn = await self.strategy_manager.get_and_increment_turn(session_id)
+
             # Build prompt
             if turn == 0:
                 prompt = (
@@ -161,7 +177,7 @@ class AgentService:
                 {"configurable": {"thread_id": session_id}}
             )
             
-            response_content = agent_response['messages'][-1].content[0]["text"]
+            response_content = self._extract_text(agent_response['messages'][-1].content)
 
             # Retry once if response is empty
             if not response_content.strip():
@@ -170,21 +186,17 @@ class AgentService:
                     {"messages": [{"role": "user", "content": prompt}]},
                     {"configurable": {"thread_id": session_id}}
                 )
-                response_content = agent_response['messages'][-1].content
+                response_content = self._extract_text(agent_response['messages'][-1].content)
             
             # Parse response to separate explanation and code
             explanation, extracted_code = self._parse_agent_response(response_content)
             
             strategy_updated = False
             if extracted_code:
-                # Update strategy in manager
-                self.strategy_manager.set_strategy(session_id, extracted_code)
+                await self.strategy_manager.set_strategy(session_id, extracted_code)
                 strategy_updated = True
                 logger.info(f"Strategy updated for session {session_id}")
-            
-            # Increment turn counter
-            self.session_turns[session_id] = turn + 1
-            
+
             return {
                 "message": explanation,  # Return just the explanation text
                 "strategy_updated": strategy_updated,
@@ -201,12 +213,3 @@ class AgentService:
                 "error": str(e)
             }
     
-    def reset_session(self, session_id: str):
-        """Reset conversation history for a session.
-        
-        Args:
-            session_id: Unique identifier for the session
-        """
-        if session_id in self.session_turns:
-            del self.session_turns[session_id]
-        logger.info(f"Session {session_id} conversation reset")
