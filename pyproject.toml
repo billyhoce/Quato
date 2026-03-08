@@ -23,7 +23,20 @@ dependencies = [
     "mcp>=1.25.0",
     "pandas>=2.3.3",
     "pydantic>=2.12.5",
+    "pytest>=9.0.2",
     "quantrocket-client>=2.11.0.0",
     "redis[hiredis]>=5.0.0",
     "uvicorn[standard]>=0.40.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "slow: requires a running QuantRocket instance and LLM (deselect with -m 'not slow')",
 ]
