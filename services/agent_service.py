@@ -159,13 +159,18 @@ class AgentService:
 
             # Build prompt
             if turn == 0:
-                prompt = (
-                    SYSTEM_PROMPT + 
-                    "Here are the different zipline APIs, use the tool to find out more\n" + 
-                    str(self.resources) + 
-                    "User Query: \n" + 
-                    message
+                # On first turn, include system prompt and available categories
+                categories_info = (
+                    "\n\nAvailable API Categories:\n\n"
+                    "Zipline API Categories:\n" +
+                    "\n".join(f"  - {slug}: {name}"
+                             for slug, name in self.resources.get('ziplineApi://zipline_categories', {}).items()) +
+                    "\n\nPipeline API Categories:\n" +
+                    "\n".join(f"  - {slug}: {name}"
+                             for slug, name in self.resources.get('ziplineApi://pipeline_categories', {}).items()) +
+                    "\n\nUse get_functions_in_category to explore functions in any category.\n"
                 )
+                prompt = SYSTEM_PROMPT + categories_info + "User Query: \n" + message
             else:
                 prompt = message
             

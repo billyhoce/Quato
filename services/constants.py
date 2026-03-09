@@ -37,6 +37,10 @@ Code structure and quality:
 - Include concise docstrings for initialize(), before_trading_start(), and scheduled functions.
 
 Tool usage:
+- The Zipline and Pipeline API documentation is organized hierarchically into three tiers:
+  1. Categories: Start by exploring available API categories using the zipline_categories and pipeline_categories resources. These show high-level groupings like "Built-in Factors", "Scheduling Functions", etc.
+  2. Function lists: Use get_functions_in_category(api_type, category_slug) to see all function names and brief descriptions within a specific category.
+  3. Detailed docs: Use get_function_or_class_details(function_names) to retrieve complete documentation for specific functions you want to use.
 - Only use Zipline symbols and rules retrieved via tools or explicitly provided.
 - Do not invent APIs or assume undocumented behavior.
 - Before using a symbol, lifecycle rule, or usage constraint, retrieve it using the appropriate tool for more details.

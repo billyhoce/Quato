@@ -5,6 +5,8 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from category_mapping import ZIPLINE_CATEGORIES, PIPELINE_CATEGORIES
+
 # Initialize FastMCP server
 mcp = FastMCP("ZiplineStrategy")
 
@@ -22,21 +24,56 @@ with open(ZIPLINE_API_FILE, "r", encoding="utf-8") as f:
 
 combined_api_data = {**pipeline_api_data, **zipline_api_data}
 
-@mcp.resource("ziplineApi://overview_of_pipeline_functions_and_classes")
-def get_pipeline_overview() -> dict:
-    """Retrieve the list of functions and classes of the pipeline API."""
-    functions_with_description = {}
-    for function, data in pipeline_api_data.items():
-        functions_with_description[function] = data.get("description", "No description available.")
-    return functions_with_description
+@mcp.resource("ziplineApi://zipline_categories")
+def get_zipline_categories() -> dict[str, str]:
+    """Retrieve the available categories in the Zipline API.
 
-@mcp.resource("ziplineApi://overview_of_zipline_functions_and_classes")
-def get_zipline_overview() -> dict:
-    """Retrieve the list of functions and classes of the zipline API."""
-    functions_with_description = {}
-    for function, data in zipline_api_data.items():
-        functions_with_description[function] = data.get("description", "No description available.")
-    return functions_with_description
+    Returns a dict mapping category slugs to human-readable names.
+    Use the get_functions_in_category tool with a category slug to see functions in that category.
+    """
+    return ZIPLINE_CATEGORIES
+
+@mcp.resource("ziplineApi://pipeline_categories")
+def get_pipeline_categories() -> dict[str, str]:
+    """Retrieve the available categories in the Pipeline API.
+
+    Returns a dict mapping category slugs to human-readable names.
+    Use the get_functions_in_category tool with a category slug to see functions in that category.
+    """
+    return PIPELINE_CATEGORIES
+
+@mcp.tool
+def get_functions_in_category(api_type: str, category_slug: str) -> dict[str, str]:
+    """Get all function/class names and their descriptions in a specific category.
+
+    Args:
+        api_type: Either "zipline" or "pipeline"
+        category_slug: The category slug (e.g., "built-in-factors", "assets", "scheduling-functions")
+
+    Returns:
+        Dict mapping function keys to their short descriptions.
+
+    Example:
+        get_functions_in_category("pipeline", "built-in-factors")
+        Returns: {
+            "docs/pipeline/built-in-factors/factors-dailyreturns": "Calculate daily returns...",
+            "docs/pipeline/built-in-factors/factors-rsi": "Compute RSI indicator...",
+            ...
+        }
+    """
+    # Select the right API data
+    api_data = pipeline_api_data if api_type == "pipeline" else zipline_api_data
+
+    # Build the category prefix
+    category_prefix = f"docs/{api_type}/{category_slug}/"
+
+    # Filter functions by category and extract descriptions
+    functions_in_category = {}
+    for func_key, func_data in api_data.items():
+        if func_key.startswith(category_prefix):
+            functions_in_category[func_key] = func_data.get("description", "No description available.")
+
+    return functions_in_category
 
 @mcp.tool
 def get_function_or_class_details(function_class_names: list[str]) -> list[dict[str, Any]]:
