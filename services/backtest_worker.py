@@ -5,13 +5,16 @@ import logging
 import traceback
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import config
 from models.backtest_models import BacktestConfig, BacktestResults, TaskStatus
 from services.backtest_queue import BacktestQueue
 from services.object_store import ObjectStoreService
 from backtesting_orchestrator.orchestrator import BacktestingOrchestrator
+
+if TYPE_CHECKING:
+    from services.agent_service import AgentService
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +27,14 @@ class BacktestWorker:
         queue: BacktestQueue,
         base_dir: Path,
         object_store: ObjectStoreService,
+        agent_service: Optional["AgentService"] = None,
+        max_retries: int = 2,
     ) -> None:
         self.queue = queue
         self.base_dir = base_dir
         self.object_store = object_store
+        self.agent_service = agent_service
+        self.max_retries = max_retries
         self.orchestrator: Optional[BacktestingOrchestrator] = None
         self.running = False
         self._processing_task: Optional[asyncio.Task] = None
@@ -126,7 +133,7 @@ class BacktestWorker:
     # -------------------------------------------------------------------------
 
     async def _process_task(self, task_id: str) -> None:
-        """Execute one backtest task end-to-end."""
+        """Execute one backtest task end-to-end with automatic retry on code errors."""
         logger.info("Processing task %s", task_id)
         lock_acquired = False
 
@@ -161,29 +168,100 @@ class BacktestWorker:
             # Deserialise config; Pydantic v2 coerces ISO date strings to date.
             task_config = BacktestConfig(**json.loads(task_data.config_json))
 
-            # Run backtest in a thread (blocking synchronous I/O).
-            results: BacktestResults
-            csv_object_key: str
-            results, csv_object_key = await asyncio.to_thread(
-                self.orchestrator.backtest_strategy_from_code,
-                strategy_code=task_data.strategy_code,
-                config=task_config,
-                base_dir=self.base_dir,
-                object_store=self.object_store,
-                task_id=task_id,
-            )
+            # Try to run backtest with retries on code errors
+            retry_count = 0
+            strategy_code = task_data.strategy_code
+            last_error = None
+
+            while retry_count <= self.max_retries:
+                try:
+                    # Run backtest in a thread (blocking synchronous I/O).
+                    results: BacktestResults
+                    csv_object_key: str
+                    results, csv_object_key = await asyncio.to_thread(
+                        self.orchestrator.backtest_strategy_from_code,
+                        strategy_code=strategy_code,
+                        config=task_config,
+                        base_dir=self.base_dir,
+                        object_store=self.object_store,
+                        task_id=task_id,
+                    )
+
+                    # Success! Update task and exit loop
+                    await self.queue.update_task(task_id, {
+                        "status": TaskStatus.COMPLETE,
+                        "success": True,
+                        "completed_at": datetime.now(timezone.utc).isoformat(),
+                        "csv_object_key": csv_object_key,
+                        "total_return": results.total_return,
+                        "sharpe_ratio": results.sharpe_ratio,
+                        "max_drawdown": results.max_drawdown,
+                        "execution_time": results.execution_time,
+                    })
+                    logger.info("Task %s complete after %d attempt(s)", task_id, retry_count + 1)
+                    return
+
+                except Exception as backtest_error:
+                    last_error = backtest_error
+                    error_msg = str(backtest_error)
+
+                    # Check if this is a code error that the agent can fix
+                    if self._is_retryable_code_error(error_msg) and retry_count < self.max_retries:
+                        if self.agent_service is None:
+                            logger.warning(
+                                "Code error detected but no agent_service available for retry"
+                            )
+                            break
+
+                        retry_count += 1
+                        logger.info(
+                            "Backtest failed with code error (attempt %d/%d), "
+                            "requesting agent fix...",
+                            retry_count,
+                            self.max_retries + 1
+                        )
+
+                        # Ask agent to fix the code
+                        try:
+                            corrected_code = await self._get_agent_correction(
+                                task_data.session_id,
+                                strategy_code,
+                                error_msg
+                            )
+
+                            if corrected_code and corrected_code != strategy_code:
+                                logger.info("Agent provided corrected strategy, retrying...")
+                                strategy_code = corrected_code
+                                # Update the task with new strategy code for this retry
+                                await self.queue.update_task(task_id, {
+                                    "strategy_code": strategy_code,
+                                })
+                                continue
+                            else:
+                                logger.warning("Agent did not provide corrected code")
+                                break
+
+                        except Exception as agent_error:
+                            logger.error(
+                                "Failed to get agent correction: %s",
+                                agent_error,
+                                exc_info=True
+                            )
+                            break
+                    else:
+                        # Not retryable or max retries reached
+                        break
+
+            # If we get here, all retries failed
+            final_error_msg = f"Backtest failed after {retry_count + 1} attempt(s):\n{last_error}\n{traceback.format_exc()}"
+            logger.error("Task %s failed: %s", task_id, final_error_msg)
 
             await self.queue.update_task(task_id, {
-                "status": TaskStatus.COMPLETE,
-                "success": True,
+                "status": TaskStatus.FAILED,
+                "success": False,
+                "error_message": final_error_msg,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
-                "csv_object_key": csv_object_key,
-                "total_return": results.total_return,
-                "sharpe_ratio": results.sharpe_ratio,
-                "max_drawdown": results.max_drawdown,
-                "execution_time": results.execution_time,
             })
-            logger.info("Task %s complete", task_id)
 
         except Exception as exc:
             error_msg = f"Worker error: {exc}\n{traceback.format_exc()}"
@@ -208,3 +286,74 @@ class BacktestWorker:
                     logger.error(
                         "Failed to release lock for task %s: %s", task_id, exc
                     )
+
+    def _is_retryable_code_error(self, error_msg: str) -> bool:
+        """Check if error message indicates a code error that can be fixed by the agent.
+
+        Args:
+            error_msg: The error message from the backtest
+
+        Returns:
+            True if this is likely a code error that the agent can fix
+        """
+        # Common patterns in QuantRocket code errors
+        retryable_patterns = [
+            "SyntaxError",
+            "NameError",
+            "AttributeError",
+            "TypeError",
+            "IndentationError",
+            "cannot set context.",  # The specific error from your example
+            "in initialize()",
+            "in before_trading_start()",
+            "in handle_data()",
+            "is not defined",
+            "has no attribute",
+            "takes",  # e.g., "takes 2 positional arguments but 3 were given"
+            "unexpected keyword argument",
+        ]
+
+        error_lower = error_msg.lower()
+        return any(pattern.lower() in error_lower for pattern in retryable_patterns)
+
+    async def _get_agent_correction(
+        self,
+        session_id: str,
+        failed_strategy_code: str,
+        error_message: str
+    ) -> Optional[str]:
+        """Request the agent to fix a failed strategy.
+
+        Args:
+            session_id: The session ID for the agent conversation
+            failed_strategy_code: The strategy code that failed
+            error_message: The error message from QuantRocket
+
+        Returns:
+            Corrected strategy code, or None if agent couldn't provide a fix
+        """
+        if self.agent_service is None:
+            return None
+
+        feedback_message = (
+            f"The trading strategy you generated failed during backtesting with this error:\n\n"
+            f"```\n{error_message}\n```\n\n"
+            f"Please fix the strategy code to resolve this error. "
+            f"Remember to follow QuantRocket's Zipline API constraints and best practices."
+        )
+
+        try:
+            result = await self.agent_service.chat(session_id, feedback_message)
+
+            if result.get("error") or not result.get("strategy_updated"):
+                logger.warning(
+                    "Agent failed to provide correction: %s",
+                    result.get("error", "No updated strategy")
+                )
+                return None
+
+            return result.get("strategy_code")
+
+        except Exception as e:
+            logger.error("Error getting agent correction: %s", e, exc_info=True)
+            return None

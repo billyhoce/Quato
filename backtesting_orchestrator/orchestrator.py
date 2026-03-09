@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
 from dotenv import load_dotenv
+
+# Load .env BEFORE importing quantrocket (it needs HOUSTON_URL at import time)
+load_dotenv(Path(__file__).parent.parent / ".env")
+
 from quantrocket import zipline
+from requests.exceptions import HTTPError
 
 from models.backtest_models import BacktestConfig, BacktestResults
 from backtesting_orchestrator.utils import (
@@ -18,8 +23,6 @@ from backtesting_orchestrator.utils import (
 
 if TYPE_CHECKING:
     from services.object_store import ObjectStoreService
-
-load_dotenv()
 
 # Constants
 INGESTION_POLL_INTERVAL = 20  # seconds
@@ -103,11 +106,35 @@ class BacktestingOrchestrator:
         Args:
             strategy_filename: Absolute path to the strategy .py file.
             run_config:        BacktestConfig with filepath_or_buffer already set.
+
+        Raises:
+            HTTPError: If QuantRocket returns a 4xx/5xx error (includes detailed
+                       error message in the response JSON when available).
         """
         self._load_strategy(strategy_filename)
         strategy = os.path.basename(strategy_filename).removesuffix(".py")
         # mode='json' serialises date → ISO string; exclude_none skips unset optionals.
-        zipline.backtest(strategy, **run_config.model_dump(mode="json", exclude_none=True))
+        try:
+            zipline.backtest(strategy, **run_config.model_dump(mode="json", exclude_none=True))
+        except HTTPError as e:
+            # QuantRocket returns detailed error messages in JSON format
+            # Extract and re-raise with a cleaner message
+            error_detail = str(e)
+            if e.response is not None:
+                try:
+                    error_json = e.response.json()
+                    # QuantRocket format: {'status': 'error', 'msg': '...'}
+                    if isinstance(error_json, dict) and 'msg' in error_json:
+                        error_detail = error_json['msg']
+                except Exception:
+                    # If JSON parsing fails, use the original error string
+                    pass
+
+            # Re-raise with the extracted detail
+            raise HTTPError(
+                f"QuantRocket backtest failed: {error_detail}",
+                response=e.response
+            ) from e
 
     def generate_tear_sheet(
         self,

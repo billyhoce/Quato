@@ -1,4 +1,5 @@
 """Shared fixtures for integration tests."""
+import logging
 import os
 import uuid
 from typing import AsyncGenerator
@@ -7,6 +8,12 @@ import httpx
 import pytest
 
 BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+
+# Enable detailed logging for tests
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s - %(message)s'
+)
 
 
 @pytest.fixture

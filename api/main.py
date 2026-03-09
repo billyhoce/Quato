@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
+import config
 from models.backtest_models import (
     BacktestConfig,
     TaskRecord,
@@ -26,13 +27,18 @@ from services.backtest_queue import BacktestQueue
 from services.backtest_worker import BacktestWorker
 from services.object_store import ObjectStoreService
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from project root
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Configure logging
+log_file = Path(__file__).parent.parent / "coder_agent.log"
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Console output
+        logging.FileHandler(log_file, mode='a')  # File output
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -67,7 +73,13 @@ async def lifespan(app: FastAPI):
             logger.info(f"Marked {failed_count} orphaned tasks as failed")
 
         base_dir = Path(__file__).parent.parent
-        backtest_worker = BacktestWorker(backtest_queue, base_dir, object_store)
+        backtest_worker = BacktestWorker(
+            queue=backtest_queue,
+            base_dir=base_dir,
+            object_store=object_store,
+            agent_service=agent_service,  # Enable automatic retry with agent
+            max_retries=config.MAX_AGENT_RETRIES,
+        )
         await backtest_worker.start()
 
         logger.info("API ready!")
@@ -112,8 +124,8 @@ class StrategyResponse(BaseModel):
 
 class BacktestRequest(BaseModel):
     bundle: str = US_FREE_STOCK_BUNDLE_DAILY
-    start_date: Optional[date] = date(2023, 1, 1)
-    end_date: Optional[date] = date(2023, 12, 31)
+    start_date: Optional[date] = date(2008, 1, 1)
+    end_date: Optional[date] = date(2011, 12, 31)
     capital_base: Optional[float] = 100000
 
 

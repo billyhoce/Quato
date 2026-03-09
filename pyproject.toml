@@ -24,6 +24,7 @@ dependencies = [
     "pandas>=2.3.3",
     "pydantic>=2.12.5",
     "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
     "quantrocket-client>=2.11.0.0",
     "redis[hiredis]>=5.0.0",
     "uvicorn[standard]>=0.40.0",
@@ -40,3 +41,7 @@ asyncio_mode = "auto"
 markers = [
     "slow: requires a running QuantRocket instance and LLM (deselect with -m 'not slow')",
 ]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s - %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
