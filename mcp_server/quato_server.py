@@ -1,11 +1,8 @@
 import json
-import pprint
 from pathlib import Path
 from typing import Any
 
 from fastmcp import FastMCP
-
-from category_mapping import ZIPLINE_CATEGORIES, PIPELINE_CATEGORIES
 
 # Initialize FastMCP server
 mcp = FastMCP("ZiplineStrategy")
@@ -24,21 +21,40 @@ with open(ZIPLINE_API_FILE, "r", encoding="utf-8") as f:
 
 combined_api_data = {**pipeline_api_data, **zipline_api_data}
 
-@mcp.resource("ziplineApi://zipline_categories")
-def get_zipline_categories() -> dict[str, str]:
-    """Retrieve the available categories in the Zipline API.
 
-    Returns a dict mapping category slugs to human-readable names.
-    Use the get_functions_in_category tool with a category slug to see functions in that category.
+def _extract_categories(api_data: dict, api_type: str) -> list[str]:
+    """Extract unique category slugs from API data keys.
+
+    Keys follow the pattern docs/{api_type}/{category_slug}/{function}.
+    """
+    categories = set()
+    prefix = f"docs/{api_type}/"
+    for key in api_data:
+        if key.startswith(prefix):
+            # Extract category_slug from docs/{api_type}/{category_slug}/...
+            rest = key[len(prefix):]
+            slug = rest.split("/", 1)[0]
+            categories.add(slug)
+    return sorted(categories)
+
+
+ZIPLINE_CATEGORIES = _extract_categories(zipline_api_data, "zipline")
+PIPELINE_CATEGORIES = _extract_categories(pipeline_api_data, "pipeline")
+
+
+@mcp.resource("ziplineApi://zipline_categories")
+def get_zipline_categories() -> list[str]:
+    """Retrieve the available category slugs in the Zipline API.
+
+    Use the get_functions_in_category tool with api_type="zipline" and a category slug to see functions in that category.
     """
     return ZIPLINE_CATEGORIES
 
 @mcp.resource("ziplineApi://pipeline_categories")
-def get_pipeline_categories() -> dict[str, str]:
-    """Retrieve the available categories in the Pipeline API.
+def get_pipeline_categories() -> list[str]:
+    """Retrieve the available category slugs in the Pipeline API.
 
-    Returns a dict mapping category slugs to human-readable names.
-    Use the get_functions_in_category tool with a category slug to see functions in that category.
+    Use the get_functions_in_category tool with api_type="pipeline" and a category slug to see functions in that category.
     """
     return PIPELINE_CATEGORIES
 

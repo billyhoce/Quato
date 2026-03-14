@@ -1,5 +1,6 @@
 """Agent Service for handling LLM interactions and strategy generation."""
 import asyncio
+import json
 import logging
 import re
 from pathlib import Path
@@ -64,7 +65,7 @@ class AgentService:
         resources = await client.get_resources()
         for blob in resources:
             logger.info(f"Found Resource with URI: {blob.metadata['uri']}")
-            self.resources[blob.metadata['uri']] = blob.data
+            self.resources[str(blob.metadata['uri'])] = json.loads(blob.data)
         
         logger.info("Creating agent with MCP tools...")
         tools = await client.get_tools()
@@ -161,14 +162,14 @@ class AgentService:
             if turn == 0:
                 # On first turn, include system prompt and available categories
                 categories_info = (
-                    "\n\nAvailable API Categories:\n\n"
-                    "Zipline API Categories:\n" +
-                    "\n".join(f"  - {slug}: {name}"
-                             for slug, name in self.resources.get('ziplineApi://zipline_categories', {}).items()) +
-                    "\n\nPipeline API Categories:\n" +
-                    "\n".join(f"  - {slug}: {name}"
-                             for slug, name in self.resources.get('ziplineApi://pipeline_categories', {}).items()) +
-                    "\n\nUse get_functions_in_category to explore functions in any category.\n"
+                    "\n\nAvailable API category slugs (use with get_functions_in_category(api_type, category_slug)):\n\n"
+                    "Zipline (api_type=\"zipline\"):\n" +
+                    "\n".join(f"  - {slug}"
+                             for slug in self.resources.get('ziplineapi://zipline_categories', [])) +
+                    "\n\nPipeline (api_type=\"pipeline\"):\n" +
+                    "\n".join(f"  - {slug}"
+                             for slug in self.resources.get('ziplineapi://pipeline_categories', [])) +
+                    "\n"
                 )
                 prompt = SYSTEM_PROMPT + categories_info + "User Query: \n" + message
             else:
