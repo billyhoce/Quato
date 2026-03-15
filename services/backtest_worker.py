@@ -3,7 +3,7 @@ import asyncio
 import json
 import logging
 import traceback
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
@@ -206,7 +206,7 @@ class BacktestWorker:
                     error_msg = str(backtest_error)
 
                     # Check if this is a code error that the agent can fix
-                    if self._is_retryable_code_error(error_msg) and retry_count < self.max_retries:
+                    if retry_count < self.max_retries:
                         if self.agent_service is None:
                             logger.warning(
                                 "Code error detected but no agent_service available for retry"
@@ -225,7 +225,6 @@ class BacktestWorker:
                         try:
                             corrected_code = await self._get_agent_correction(
                                 task_data.session_id,
-                                strategy_code,
                                 error_msg
                             )
 
@@ -287,39 +286,9 @@ class BacktestWorker:
                         "Failed to release lock for task %s: %s", task_id, exc
                     )
 
-    def _is_retryable_code_error(self, error_msg: str) -> bool:
-        """Check if error message indicates a code error that can be fixed by the agent.
-
-        Args:
-            error_msg: The error message from the backtest
-
-        Returns:
-            True if this is likely a code error that the agent can fix
-        """
-        # Common patterns in QuantRocket code errors
-        retryable_patterns = [
-            "SyntaxError",
-            "NameError",
-            "AttributeError",
-            "TypeError",
-            "IndentationError",
-            "cannot set context.",  # The specific error from your example
-            "in initialize()",
-            "in before_trading_start()",
-            "in handle_data()",
-            "is not defined",
-            "has no attribute",
-            "takes",  # e.g., "takes 2 positional arguments but 3 were given"
-            "unexpected keyword argument",
-        ]
-
-        error_lower = error_msg.lower()
-        return any(pattern.lower() in error_lower for pattern in retryable_patterns)
-
     async def _get_agent_correction(
         self,
         session_id: str,
-        failed_strategy_code: str,
         error_message: str
     ) -> Optional[str]:
         """Request the agent to fix a failed strategy.

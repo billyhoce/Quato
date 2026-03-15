@@ -79,7 +79,7 @@ class AgentService:
         )
         
         self.agent = create_agent(
-            model=model,
+            model="claude-sonnet-4-6",
             tools=tools,
             checkpointer=checkpointer
         )
