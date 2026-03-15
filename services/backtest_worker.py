@@ -178,7 +178,8 @@ class BacktestWorker:
                     # Run backtest in a thread (blocking synchronous I/O).
                     results: BacktestResults
                     csv_object_key: str
-                    results, csv_object_key = await asyncio.to_thread(
+                    tearsheet_object_key: Optional[str]
+                    results, csv_object_key, tearsheet_object_key = await asyncio.to_thread(
                         self.orchestrator.backtest_strategy_from_code,
                         strategy_code=strategy_code,
                         config=task_config,
@@ -188,7 +189,7 @@ class BacktestWorker:
                     )
 
                     # Success! Update task and exit loop
-                    await self.queue.update_task(task_id, {
+                    update_fields = {
                         "status": TaskStatus.COMPLETE,
                         "success": True,
                         "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -197,7 +198,10 @@ class BacktestWorker:
                         "sharpe_ratio": results.sharpe_ratio,
                         "max_drawdown": results.max_drawdown,
                         "execution_time": results.execution_time,
-                    })
+                    }
+                    if tearsheet_object_key:
+                        update_fields["tearsheet_object_key"] = tearsheet_object_key
+                    await self.queue.update_task(task_id, update_fields)
                     logger.info("Task %s complete after %d attempt(s)", task_id, retry_count + 1)
                     return
 

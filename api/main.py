@@ -319,6 +319,30 @@ async def get_backtest_download(task_id: str):
     return BacktestDownloadResponse(download_url=url, expires_in=3600)
 
 
+@app.get("/api/backtest/{task_id}/tearsheet", response_model=BacktestDownloadResponse)
+async def get_backtest_tearsheet(task_id: str):
+    """Generate a pre-signed URL for direct download of the backtest tear sheet PDF.
+
+    The URL is valid for 1 hour.
+    """
+    task = await backtest_queue.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Backtest not found")
+    if not task.tearsheet_object_key:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No tear sheet available for this backtest "
+                "(still running, failed, or tear sheet generation failed)"
+            ),
+        )
+
+    url = await asyncio.to_thread(
+        object_store.get_presigned_download_url, task.tearsheet_object_key
+    )
+    return BacktestDownloadResponse(download_url=url, expires_in=3600)
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""

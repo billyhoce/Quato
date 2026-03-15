@@ -78,6 +78,21 @@ class ObjectStoreService:
         logger.info("Uploaded %s → s3://%s/%s", local_path, self.bucket, key)
         return key
 
+    def upload_tearsheet(self, task_id: str, local_path: str) -> str:
+        """Upload a tear sheet PDF and return its object key.
+
+        Args:
+            task_id:    Task identifier used to namespace the object.
+            local_path: Absolute path to the local PDF file to upload.
+
+        Returns:
+            The object key, e.g. "backtests/<task_id>/tearsheet.pdf".
+        """
+        key = f"backtests/{task_id}/tearsheet.pdf"
+        self._client.upload_file(local_path, self.bucket, key)
+        logger.info("Uploaded %s → s3://%s/%s", local_path, self.bucket, key)
+        return key
+
     def get_presigned_download_url(
         self,
         object_key: str,

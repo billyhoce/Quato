@@ -139,23 +139,29 @@ class BacktestingOrchestrator:
     def generate_tear_sheet(
         self,
         path_to_results: Path,
-        output_path: Optional[str] = None,
-    ) -> None:
+        output_path: Optional[Path] = None,
+    ) -> Path:
         """Generate a pyfolio tearsheet via QuantRocket.
 
         Args:
             path_to_results: Local path to the backtest results CSV.
             output_path:     Where to write the PDF (defaults to same dir).
+
+        Returns:
+            Path to the generated tear sheet PDF.
         """
         with open(path_to_results, "r") as f:
             if not f.read():
                 raise ValueError(
                     f"Backtest results file {path_to_results} is empty."
                 )
+        pdf_path = output_path or path_to_results.with_suffix(".pdf")
         zipline.create_tearsheet(
-            path_to_results,
-            output_path if output_path is not None else path_to_results.parent / "tearsheet.pdf",
+            str(path_to_results),
+            str(pdf_path),
         )
+        logging.info("Generated tear sheet at %s", pdf_path)
+        return pdf_path
 
     # -------------------------------------------------------------------------
     # End-to-end workflow
@@ -168,7 +174,7 @@ class BacktestingOrchestrator:
         base_dir: Path,
         object_store: "ObjectStoreService",
         task_id: Optional[str] = None,
-    ) -> Tuple[BacktestResults, str]:
+    ) -> Tuple[BacktestResults, str, Optional[str]]:
         """Run a full backtest from raw strategy code.
 
         Steps:
@@ -188,7 +194,8 @@ class BacktestingOrchestrator:
             task_id:       Optional task ID used as the object store namespace.
 
         Returns:
-            Tuple of (BacktestResults, csv_object_key).
+            Tuple of (BacktestResults, csv_object_key, tearsheet_object_key).
+            tearsheet_object_key is None if tear sheet generation fails.
 
         Raises:
             Exception: Propagated to the caller on any failure; local files are
@@ -202,6 +209,7 @@ class BacktestingOrchestrator:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         strategy_path = strategies_dir / f"strategy_{timestamp}.py"
         results_file = results_dir / f"backtest_{timestamp}.csv"
+        tearsheet_file = results_dir / f"backtest_{timestamp}.pdf"
 
         strategy_path.write_text(strategy_code)
         logging.info("Saved strategy to %s", strategy_path)
@@ -231,11 +239,21 @@ class BacktestingOrchestrator:
             store_key = task_id or timestamp
             csv_object_key = object_store.upload_backtest_csv(store_key, str(results_file))
 
-            return results, csv_object_key
+            # Generate and upload tear sheet (non-fatal if it fails).
+            tearsheet_object_key: Optional[str] = None
+            try:
+                self.generate_tear_sheet(results_file, tearsheet_file)
+                tearsheet_object_key = object_store.upload_tearsheet(
+                    store_key, str(tearsheet_file)
+                )
+            except Exception as exc:
+                logging.warning("Tear sheet generation failed: %s", exc)
+
+            return results, csv_object_key, tearsheet_object_key
 
         finally:
             # Always clean up local files regardless of success or failure.
-            for path in (strategy_path, results_file):
+            for path in (strategy_path, results_file, tearsheet_file):
                 try:
                     path.unlink(missing_ok=True)
                 except Exception as exc:

@@ -164,6 +164,7 @@ class TaskRecord(BaseModel):
     error_message: Optional[str] = None
     success: Optional[bool] = None
     csv_object_key: Optional[str] = None  # object store key for the results CSV
+    tearsheet_object_key: Optional[str] = None  # object store key for the tear sheet PDF
     # Performance metrics — populated on successful completion
     total_return: Optional[float] = None
     sharpe_ratio: Optional[float] = None
@@ -180,7 +181,7 @@ class TaskRecord(BaseModel):
         parsed: Dict[str, Any] = dict(data)
 
         # Empty string → None for optional string/datetime fields
-        for field in ("started_at", "completed_at", "error_message", "csv_object_key"):
+        for field in ("started_at", "completed_at", "error_message", "csv_object_key", "tearsheet_object_key"):
             if field in parsed and parsed[field] == "":
                 parsed[field] = None
 
