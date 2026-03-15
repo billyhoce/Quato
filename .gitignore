@@ -46,3 +46,6 @@ Thumbs.db
 
 # Locally stored strategies and data
 strategies/
+
+# Ignore any other files or directories that are not relevant to the project
+.claude/

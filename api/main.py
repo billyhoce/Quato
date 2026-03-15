@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
@@ -102,6 +103,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# CORS — allow frontend dev server and any configured origins
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ---------------------------------------------------------------------------
 # Request / Response models
 # ---------------------------------------------------------------------------
@@ -119,6 +130,11 @@ class ChatResponse(BaseModel):
 
 class StrategyResponse(BaseModel):
     code: Optional[str]
+    has_strategy: bool
+
+
+class StrategySummaryResponse(BaseModel):
+    summary: Optional[str] = None
     has_strategy: bool
 
 
@@ -187,6 +203,26 @@ async def get_current_strategy(
 
     code = await strategy_manager.get_strategy(x_session_id)
     return StrategyResponse(code=code, has_strategy=code is not None)
+
+
+@app.get("/api/strategy/summary", response_model=StrategySummaryResponse)
+async def get_strategy_summary(
+    x_session_id: str = Header(default=None)
+):
+    """Get an LLM-generated plain-English summary of the current strategy."""
+    if not x_session_id:
+        raise HTTPException(status_code=400, detail="X-Session-ID header required")
+
+    code = await strategy_manager.get_strategy(x_session_id)
+    if not code:
+        return StrategySummaryResponse(summary=None, has_strategy=False)
+
+    try:
+        summary = await strategy_manager.get_or_create_summary(x_session_id, code)
+        return StrategySummaryResponse(summary=summary, has_strategy=True)
+    except Exception as e:
+        logger.error(f"Summary generation error: {e}", exc_info=True)
+        return StrategySummaryResponse(summary=None, has_strategy=True)
 
 
 @app.post("/api/backtest", response_model=BacktestResponse)

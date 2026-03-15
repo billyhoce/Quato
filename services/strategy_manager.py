@@ -1,9 +1,11 @@
 """Strategy Manager for handling strategy state per session - Redis-backed."""
+import hashlib
 import logging
 import os
 from typing import Optional
 
 import redis.asyncio as redis
+from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,8 @@ class StrategyManager:
 
     STRATEGY_KEY_PREFIX = "strategy:"
     TURNS_KEY_PREFIX = "session:turns:"
+    SUMMARY_KEY_PREFIX = "strategy:summary:"
+    SUMMARY_HASH_KEY_PREFIX = "strategy:summary_hash:"
 
     def __init__(self, redis_url: Optional[str] = None):
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -62,3 +66,43 @@ class StrategyManager:
         # "before" value that represents which turn we're currently on.
         new_count = await self._redis.incr(f"{self.TURNS_KEY_PREFIX}{session_id}")
         return new_count - 1
+
+    async def get_or_create_summary(self, session_id: str, code: str) -> str:
+        """Return a cached summary if the code hasn't changed, otherwise generate one."""
+        await self.connect()
+        code_hash = hashlib.sha256(code.encode()).hexdigest()
+
+        cached_hash = await self._redis.get(
+            f"{self.SUMMARY_HASH_KEY_PREFIX}{session_id}"
+        )
+        if cached_hash == code_hash:
+            cached_summary = await self._redis.get(
+                f"{self.SUMMARY_KEY_PREFIX}{session_id}"
+            )
+            if cached_summary:
+                return cached_summary
+
+        summary = await self._generate_summary(code)
+
+        await self._redis.set(
+            f"{self.SUMMARY_KEY_PREFIX}{session_id}", summary
+        )
+        await self._redis.set(
+            f"{self.SUMMARY_HASH_KEY_PREFIX}{session_id}", code_hash
+        )
+        return summary
+
+    @staticmethod
+    async def _generate_summary(code: str) -> str:
+        """Call Gemini to produce a plain-English strategy summary."""
+        client = genai.Client()
+        response = await client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=(
+                "Summarize this Zipline trading strategy in 2-4 sentences of "
+                "plain English. Focus on what the strategy does, what signals "
+                "it uses, and its basic logic. Do not include code.\n\n"
+                f"```python\n{code}\n```"
+            ),
+        )
+        return response.text
