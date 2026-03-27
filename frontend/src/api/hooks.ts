@@ -10,6 +10,8 @@ import type {
   BacktestResultResponse,
   BacktestDownloadResponse,
   BacktestHistoryResponse,
+  UniverseListResponse,
+  UniverseSecuritiesResponse,
 } from "./types"
 
 export function useChat() {
@@ -92,5 +94,22 @@ export function useTearsheet(taskId: string) {
     queryKey: ["tearsheet", taskId],
     queryFn: () => apiFetch<BacktestDownloadResponse>(`/backtest/${taskId}/tearsheet`),
     enabled: false,
+  })
+}
+
+export function useUniverses() {
+  return useQuery({
+    queryKey: ["universes"],
+    queryFn: () => apiFetch<UniverseListResponse>("/universes"),
+    staleTime: 60_000,
+  })
+}
+
+export function useUniverseSecurities(name: string | null) {
+  return useQuery({
+    queryKey: ["universe-securities", name],
+    queryFn: () => apiFetch<UniverseSecuritiesResponse>(`/universes/${name}/securities`),
+    enabled: !!name,
+    staleTime: 60_000,
   })
 }

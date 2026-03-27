@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Optional
@@ -58,6 +59,7 @@ class AgentService:
                 "transport": "stdio",
                 "command": "python",
                 "args": [str(mcp_server_path)],
+                "env": dict(os.environ),
             }
         })
         

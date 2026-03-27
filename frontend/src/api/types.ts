@@ -72,3 +72,26 @@ export interface ChatMessage {
   content: string
   timestamp: Date
 }
+
+export interface UniverseItem {
+  name: string
+  security_count: number
+}
+
+export interface UniverseListResponse {
+  universes: UniverseItem[]
+}
+
+export interface SecurityItem {
+  sid: string
+  symbol: string
+  name: string | null
+  security_type: string | null
+  exchange: string | null
+}
+
+export interface UniverseSecuritiesResponse {
+  universe_name: string
+  securities: SecurityItem[]
+  total_count: number
+}

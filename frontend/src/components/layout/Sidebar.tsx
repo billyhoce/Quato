@@ -2,6 +2,7 @@ import { X } from "lucide-react"
 import { StrategySummary } from "../strategy/StrategySummary"
 import { BacktestConfigForm } from "../backtest/BacktestConfigForm"
 import { BacktestHistory } from "../backtest/BacktestHistory"
+import { UniverseList } from "../universes/UniverseList"
 
 interface SidebarProps {
   open: boolean
@@ -46,6 +47,7 @@ export function Sidebar({ open, onClose, hasStrategy, onViewCode, onRunBacktest,
             isRunning={isRunning}
           />
           <BacktestHistory />
+          <UniverseList />
         </div>
       </aside>
     </>

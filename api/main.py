@@ -172,6 +172,29 @@ class BacktestHistoryResponse(BaseModel):
     backtests: List[dict]
 
 
+class UniverseItem(BaseModel):
+    name: str
+    security_count: int
+
+
+class UniverseListResponse(BaseModel):
+    universes: List[UniverseItem]
+
+
+class SecurityItem(BaseModel):
+    sid: str
+    symbol: str
+    name: Optional[str]
+    security_type: Optional[str]
+    exchange: Optional[str]
+
+
+class UniverseSecuritiesResponse(BaseModel):
+    universe_name: str
+    securities: List[SecurityItem]
+    total_count: int
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -377,6 +400,47 @@ async def get_backtest_tearsheet(task_id: str):
         object_store.get_presigned_download_url, task.tearsheet_object_key
     )
     return BacktestDownloadResponse(download_url=url, expires_in=3600)
+
+
+@app.get("/api/universes", response_model=UniverseListResponse)
+async def list_universes():
+    """Return all QuantRocket universes with their security counts."""
+    import quantrocket.master as qr_master
+    universe_counts: dict = await asyncio.to_thread(qr_master.list_universes)
+    universes = [
+        UniverseItem(name=name, security_count=count)
+        for name, count in universe_counts.items()
+    ]
+    return UniverseListResponse(universes=universes)
+
+
+@app.get("/api/universes/{name}/securities", response_model=UniverseSecuritiesResponse)
+async def get_universe_securities(name: str):
+    """Return securities in a QuantRocket universe (capped at 500)."""
+    import quantrocket.master as qr_master
+    df = await asyncio.to_thread(
+        qr_master.get_securities,
+        universes=[name],
+        fields=["Symbol", "Name", "usstock_SecurityType2", "Exchange"],
+    )
+    total_count = len(df)
+    df = df.head(500)
+
+    securities = [
+        SecurityItem(
+            sid=str(sid),
+            symbol=row.get("Symbol") or "",
+            name=row.get("Name"),
+            security_type=row.get("usstock_SecurityType2"),
+            exchange=row.get("Exchange"),
+        )
+        for sid, row in df.iterrows()
+    ]
+    return UniverseSecuritiesResponse(
+        universe_name=name,
+        securities=securities,
+        total_count=total_count,
+    )
 
 
 @app.get("/health")
