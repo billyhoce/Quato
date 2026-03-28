@@ -26,10 +26,10 @@ export function Sidebar({ open, onClose, hasStrategy, onViewCode, onRunBacktest,
       <aside
         className={`
           fixed md:relative z-40 md:z-auto
-          top-0 left-0 h-full w-[300px] bg-card border-r border-border
+          top-0 right-0 h-full w-[380px] bg-card border-l border-border
           flex flex-col overflow-y-auto
           transition-transform duration-200
-          ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          ${open ? "translate-x-0" : "translate-x-full md:translate-x-0"}
         `}
       >
         <div className="flex items-center justify-between p-4 md:hidden">

@@ -21,6 +21,7 @@ class BacktestQueue:
     TASK_KEY_PREFIX = "backtest:task:"
     SESSION_KEY_PREFIX = "session:"
     LOCK_KEY = "backtest:lock"
+    GLOBAL_TASKS_KEY = "backtest:all_tasks"
 
     def __init__(self, redis_url: Optional[str] = None):
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -124,10 +125,32 @@ class BacktestQueue:
     # -------------------------------------------------------------------------
 
     async def add_to_session(self, session_id: str, task_id: str) -> None:
-        """Associate a task with a session."""
+        """Associate a task with a session and the global task set."""
         await self.connect()
         session_key = f"{self.SESSION_KEY_PREFIX}{session_id}:tasks"
         await self.redis_client.sadd(session_key, task_id)
+        await self.redis_client.sadd(self.GLOBAL_TASKS_KEY, task_id)
+
+    async def get_all_tasks(self) -> List[TaskRecord]:
+        """Return all tasks across all sessions, sorted newest-first."""
+        await self.connect()
+        task_ids = await self.redis_client.smembers(self.GLOBAL_TASKS_KEY)
+
+        if not task_ids:
+            return []
+
+        async with self.redis_client.pipeline() as pipe:
+            for task_id in task_ids:
+                pipe.hgetall(f"{self.TASK_KEY_PREFIX}{task_id}")
+            results = await pipe.execute()
+
+        tasks = [
+            TaskRecord.from_redis_hash(data)
+            for data in results
+            if data
+        ]
+        tasks.sort(key=lambda t: t.created_at, reverse=True)
+        return tasks
 
     async def get_session_tasks(self, session_id: str) -> List[TaskRecord]:
         """Return all tasks for a session, sorted newest-first.

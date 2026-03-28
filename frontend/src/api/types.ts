@@ -16,6 +16,7 @@ export interface StrategyResponse {
 
 export interface StrategySummaryResponse {
   summary: string | null
+  title: string | null
   has_strategy: boolean
 }
 
@@ -64,6 +65,13 @@ export interface BacktestHistoryItem {
   max_drawdown: number | null
   execution_time: number | null
   error_message: string | null
+}
+
+export interface SessionMeta {
+  id: string
+  name: string
+  createdAt: string
+  userNamed?: boolean
 }
 
 export interface ChatMessage {

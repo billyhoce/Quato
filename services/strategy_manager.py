@@ -25,6 +25,8 @@ class StrategyManager:
     TURNS_KEY_PREFIX = "session:turns:"
     SUMMARY_KEY_PREFIX = "strategy:summary:"
     SUMMARY_HASH_KEY_PREFIX = "strategy:summary_hash:"
+    TITLE_KEY_PREFIX = "strategy:title:"
+    TITLE_HASH_KEY_PREFIX = "strategy:title_hash:"
 
     def __init__(self, redis_url: Optional[str] = None):
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -92,6 +94,44 @@ class StrategyManager:
         )
         return summary
 
+    async def get_or_create_title(self, session_id: str, code: str) -> str:
+        """Return a cached short title if the code hasn't changed, otherwise generate one."""
+        await self.connect()
+        code_hash = hashlib.sha256(code.encode()).hexdigest()
+
+        cached_hash = await self._redis.get(
+            f"{self.TITLE_HASH_KEY_PREFIX}{session_id}"
+        )
+        if cached_hash == code_hash:
+            cached_title = await self._redis.get(
+                f"{self.TITLE_KEY_PREFIX}{session_id}"
+            )
+            if cached_title:
+                return cached_title
+
+        title = await self._generate_title(code)
+
+        await self._redis.set(f"{self.TITLE_KEY_PREFIX}{session_id}", title)
+        await self._redis.set(
+            f"{self.TITLE_HASH_KEY_PREFIX}{session_id}", code_hash
+        )
+        return title
+
+    @staticmethod
+    async def _generate_title(code: str) -> str:
+        """Call Gemini to produce a 3-6 word session title for the strategy."""
+        client = genai.Client()
+        response = await client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=(
+                "Give this trading strategy a concise title of 3-6 words that "
+                "describes what it does. Output ONLY the title with no punctuation "
+                "at the end and no extra explanation.\n\n"
+                f"```python\n{code}\n```"
+            ),
+        )
+        return response.text.strip()
+
     @staticmethod
     async def _generate_summary(code: str) -> str:
         """Call Gemini to produce a plain-English strategy summary."""
@@ -99,9 +139,10 @@ class StrategyManager:
         response = await client.aio.models.generate_content(
             model="gemini-2.5-flash",
             contents=(
-                "Summarize this Zipline trading strategy in 2-4 sentences of "
-                "plain English. Focus on what the strategy does, what signals "
-                "it uses, and its basic logic. Do not include code.\n\n"
+                "Summarize this trading strategy in 2-4 sentences of plain English. "
+                "Focus on what the strategy does, what signals it uses, and its basic "
+                "logic. Do not mention any libraries, frameworks, or implementation "
+                "details — only describe the strategy itself. Do not include code.\n\n"
                 f"```python\n{code}\n```"
             ),
         )

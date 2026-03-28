@@ -51,7 +51,6 @@ export function BacktestConfigForm({ hasStrategy, onRun, isRunning }: BacktestCo
             value={capitalBase}
             onChange={(e) => setCapitalBase(e.target.value)}
             min="1"
-            step="1000"
             className="mt-0.5 w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </label>

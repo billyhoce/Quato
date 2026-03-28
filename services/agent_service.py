@@ -80,10 +80,13 @@ class AgentService:
             max_retries=2,
         )
         
+        for tool in tools:
+            tool.handle_tool_error = True
+
         self.agent = create_agent(
             model="claude-sonnet-4-6",
             tools=tools,
-            checkpointer=checkpointer
+            checkpointer=checkpointer,
         )
         
         self._initialized = True
@@ -182,7 +185,8 @@ class AgentService:
             # Get agent response
             agent_response = await self.agent.ainvoke(
                 {"messages": [{"role": "user", "content": prompt}]},
-                {"configurable": {"thread_id": session_id}}
+                {"configurable": {"thread_id": session_id}},
+                cache_control={"type": "ephemeral"}
             )
             
             response_content = self._extract_text(agent_response['messages'][-1].content)

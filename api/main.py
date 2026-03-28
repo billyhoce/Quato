@@ -135,6 +135,7 @@ class StrategyResponse(BaseModel):
 
 class StrategySummaryResponse(BaseModel):
     summary: Optional[str] = None
+    title: Optional[str] = None
     has_strategy: bool
 
 
@@ -241,11 +242,14 @@ async def get_strategy_summary(
         return StrategySummaryResponse(summary=None, has_strategy=False)
 
     try:
-        summary = await strategy_manager.get_or_create_summary(x_session_id, code)
-        return StrategySummaryResponse(summary=summary, has_strategy=True)
+        summary, title = await asyncio.gather(
+            strategy_manager.get_or_create_summary(x_session_id, code),
+            strategy_manager.get_or_create_title(x_session_id, code),
+        )
+        return StrategySummaryResponse(summary=summary, title=title, has_strategy=True)
     except Exception as e:
         logger.error(f"Summary generation error: {e}", exc_info=True)
-        return StrategySummaryResponse(summary=None, has_strategy=True)
+        return StrategySummaryResponse(summary=None, title=None, has_strategy=True)
 
 
 @app.post("/api/backtest", response_model=BacktestResponse)
@@ -307,14 +311,9 @@ async def start_backtest(
 
 # /history must be defined before /{task_id} to prevent FastAPI route shadowing
 @app.get("/api/backtest/history", response_model=BacktestHistoryResponse)
-async def get_backtest_history(
-    x_session_id: str = Header(default=None)
-):
-    """Return all backtests for the session, newest first."""
-    if not x_session_id:
-        raise HTTPException(status_code=400, detail="X-Session-ID header required")
-
-    tasks = await backtest_queue.get_session_tasks(x_session_id)
+async def get_backtest_history():
+    """Return all backtests across all sessions, newest first."""
+    tasks = await backtest_queue.get_all_tasks()
     return BacktestHistoryResponse(backtests=[
         {
             "task_id": t.task_id,

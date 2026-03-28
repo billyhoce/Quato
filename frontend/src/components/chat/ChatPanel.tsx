@@ -1,16 +1,39 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { MessageList } from "./MessageList"
 import { ChatInput } from "./ChatInput"
 import { useChat } from "../../api/hooks"
-import type { ChatMessage } from "../../api/types"
+import { useSession } from "../../context/SessionContext"
+import { apiFetch } from "../../api/client"
+import type { ChatMessage, StrategySummaryResponse } from "../../api/types"
+
+function loadMessages(sessionId: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(`quato_messages_${sessionId}`)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Array<Omit<ChatMessage, "timestamp"> & { timestamp: string }>
+    return parsed.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }))
+  } catch {
+    return []
+  }
+}
+
+function saveMessages(sessionId: string, messages: ChatMessage[]) {
+  localStorage.setItem(`quato_messages_${sessionId}`, JSON.stringify(messages))
+}
 
 interface ChatPanelProps {
+  sessionId: string
   onStrategyUpdate: () => void
 }
 
-export function ChatPanel({ onStrategyUpdate }: ChatPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+export function ChatPanel({ sessionId, onStrategyUpdate }: ChatPanelProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(sessionId))
   const chatMutation = useChat()
+  const { autoRenameSession } = useSession()
+
+  useEffect(() => {
+    saveMessages(sessionId, messages)
+  }, [messages, sessionId])
 
   const handleSend = useCallback(
     (content: string) => {
@@ -35,6 +58,11 @@ export function ChatPanel({ onStrategyUpdate }: ChatPanelProps) {
             setMessages((prev) => [...prev, agentMsg])
             if (data.strategy_updated) {
               onStrategyUpdate()
+              apiFetch<StrategySummaryResponse>("/strategy/summary")
+                .then((res) => {
+                  if (res.title) autoRenameSession(sessionId, res.title)
+                })
+                .catch(() => {})
             }
           },
           onError: (error) => {
@@ -49,7 +77,7 @@ export function ChatPanel({ onStrategyUpdate }: ChatPanelProps) {
         }
       )
     },
-    [chatMutation, onStrategyUpdate]
+    [chatMutation, onStrategyUpdate, autoRenameSession, sessionId]
   )
 
   return (
