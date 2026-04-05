@@ -10,6 +10,7 @@ from typing import Optional
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_anthropic.middleware import AnthropicPromptCachingMiddleware
 from langchain.agents import create_agent
 
 from services.constants import SYSTEM_PROMPT
@@ -87,6 +88,7 @@ class AgentService:
             model="claude-sonnet-4-6",
             tools=tools,
             checkpointer=checkpointer,
+            middleware=[AnthropicPromptCachingMiddleware(ttl="5m")],
         )
         
         self._initialized = True
@@ -186,7 +188,6 @@ class AgentService:
             agent_response = await self.agent.ainvoke(
                 {"messages": [{"role": "user", "content": prompt}]},
                 {"configurable": {"thread_id": session_id}},
-                cache_control={"type": "ephemeral"}
             )
             
             response_content = self._extract_text(agent_response['messages'][-1].content)

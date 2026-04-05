@@ -1,59 +1,10 @@
 import json
-import os
+import pandas as pd
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
 from fastmcp import FastMCP
-
-# ---------------------------------------------------------------------------
-# Mock mode — set QUATO_MOCK=1 to return fake data without a QuantRocket server.
-# Used by integration tests.
-# ---------------------------------------------------------------------------
-_MOCK = os.getenv("QUATO_MOCK") == "1"
-import tempfile as _tempfile
-_MOCK_LOG = Path(os.getenv("QUATO_MOCK_LOG", str(Path(_tempfile.gettempdir()) / "quato_mock_calls.jsonl")))
-
-_MOCK_UNIVERSES: dict[str, int] = {
-    "us-stocks": 8000,
-    "us-etfs": 520,
-    "tech-stocks": 420,
-}
-
-_MOCK_STK_DF = pd.DataFrame(
-    {
-        "Symbol": ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"],
-        "Name": [
-            "Apple Inc", "Microsoft Corp", "Alphabet Inc",
-            "Amazon.com Inc", "NVIDIA Corp", "Meta Platforms Inc", "Tesla Inc",
-        ],
-        "usstock_SecurityType2": ["Common Stock"] * 7,
-        "Exchange": ["XNAS"] * 7,
-        "SecType": ["STK"] * 7,
-    },
-    index=[
-        "FIBBG000B9XRY4", "FIBBG000BPH459", "FIBBG000BVPV84",
-        "FIBBG000BVKVH2", "FIBBG000BBJQV0", "FIBBG000MM2P62", "FIBBG000N9MNX3",
-    ],
-)
-
-_MOCK_ETF_DF = pd.DataFrame(
-    {
-        "Symbol": ["SPY", "QQQ", "IWM"],
-        "Name": [
-            "SPDR S&P 500 ETF Trust", "Invesco QQQ Trust", "iShares Russell 2000 ETF",
-        ],
-        "usstock_SecurityType2": ["Mutual Fund"] * 3,
-        "Exchange": ["ARCX", "XNAS", "ARCX"],
-        "SecType": ["STK"] * 3,
-    },
-    index=["FIBBG000BDTBL9", "FIBBG000BSWKH7", "FIBBG000C2JQY0"],
-)
-
-
-def _mock_log(fn: str, **kwargs) -> None:
-    with open(_MOCK_LOG, "a") as f:
-        f.write(json.dumps({"fn": fn, **kwargs}) + "\n")
+from quantrocket import master
 
 # Initialize FastMCP server
 mcp = FastMCP("ZiplineStrategy")
@@ -168,9 +119,6 @@ def list_universes() -> dict[str, int]:
         Mapping of universe name to security count,
         e.g. {"us-stocks": 8000, "tech-stocks": 420}.
     """
-    if _MOCK:
-        _mock_log("list_universes")
-        return dict(_MOCK_UNIVERSES)
     from quantrocket import master
     return master.list_universes()
 
@@ -179,8 +127,6 @@ def list_universes() -> dict[str, int]:
 def search_securities(
     exchanges: list[str] | None = None,
     sec_types: list[str] | None = None,
-    usstock_security_type2: list[str] | None = None,
-    vendors: list[str] | None = None,
     symbols: list[str] | None = None,
     universes: list[str] | None = None,
     exclude_delisted: bool = True,
@@ -191,17 +137,7 @@ def search_securities(
     Use this to find the SIDs needed to build a universe, or to explore what
     securities are available before writing a strategy.
 
-    IMPORTANT — two separate "type" fields exist and behave differently:
-
-    sec_types vs usstock_security_type2
-    ------------------------------------
-    - `sec_types` is the generic QuantRocket security type. In this deployment
-      ALL securities (common stocks, preferred shares, REITs, mutual funds, etc.)
-      are stored as SecType="STK". Do NOT use sec_types to filter by asset class
-      for US equities — it will not work as expected.
-
-    - `usstock_security_type2` is the US-stock-specific subtype and is the
-      correct way to filter by asset class. Known values in this deployment:
+    - Known `sec_types` values in this deployment:
         "Common Stock"       — ordinary common shares (6 192 active)
         "Mutual Fund"        — ETFs and mutual funds (2 278); despite the name,
                                this category includes ETFs (e.g. SPY, QQQ).
@@ -214,30 +150,16 @@ def search_securities(
         "Equity"             — other equity instruments (131)
         "Partnership Shares" — LP units (104)
         "Unit"               — closed-end fund units, etc. (98)
-      NOTE: "ETF" does NOT exist as a usstock_SecurityType2 value — use
+      NOTE: "ETF" does NOT exist as a `sec_types` value — use
       "Mutual Fund" instead to find ETFs.
-
-    For finer-grained filtering, usstock_SecurityType (the most granular field)
-    can distinguish e.g. "Exchange Traded Fund" within "Mutual Fund", but this
-    is not exposed as a filter parameter here. If you need that level of detail,
-    ask the user to refine their request or check the securities list after
-    searching with usstock_security_type2=["Mutual Fund"].
-
-    The returned "security_type" key in each result reflects the
-    usstock_SecurityType2 value so you can verify before creating a universe.
 
     Parameters
     ----------
     exchanges : list of str, optional
         Filter by exchange MIC codes (e.g. ["XNAS", "XNYS"] for NASDAQ / NYSE).
     sec_types : list of str, optional
-        Generic security type filter. For US equities leave this as None and
-        use usstock_security_type2 instead (see above).
-    usstock_security_type2 : list of str, optional
-        US-stock subtype filter. Use this to select asset classes reliably.
+        Security subtype filter. Use this to select asset classes reliably.
         e.g. ["Common Stock"], ["REIT"], ["Common Stock", "Depositary Receipt"].
-    vendors : list of str, optional
-        Filter by data vendor. Common values: "usstock", "ibkr", "sharadar".
     symbols : list of str, optional
         Filter to specific ticker symbols (e.g. ["AAPL", "MSFT"]).
     universes : list of str, optional
@@ -250,49 +172,26 @@ def search_securities(
     Returns
     -------
     list of dict
-        Each dict has keys: sid, symbol, name, security_type, exchange.
-        security_type reflects the usstock_SecurityType2 value.
+        Each dict has keys: sid, symbol
     """
-    if _MOCK:
-        _mock_log("search_securities", exchanges=exchanges, sec_types=sec_types,
-                  usstock_security_type2=usstock_security_type2, symbols=symbols,
-                  universes=universes)
-        use_etf = (usstock_security_type2 and "Mutual Fund" in usstock_security_type2) or (
-            sec_types and set(sec_types) == {"ETF"}
-        )
-        df = _MOCK_ETF_DF if use_etf else _MOCK_STK_DF
-        if symbols:
-            df = df[df["Symbol"].isin(symbols)]
-        df = df.head(min(max_results, 500))
-        return [
-            {"sid": str(sid), "symbol": str(row.get("Symbol") or ""),
-             "name": row.get("Name"), "security_type": row.get("usstock_SecurityType2"),
-             "exchange": row.get("Exchange")}
-            for sid, row in df.iterrows()
-        ]
-    from quantrocket import master
-    # Build post-fetch filter for usstock_SecurityType2 (not a native API param)
     df = master.get_securities(
         exchanges=exchanges,
-        sec_types=sec_types,
-        vendors=vendors,
         symbols=symbols,
         universes=universes,
         exclude_delisted=exclude_delisted,
-        fields=["Symbol", "Name", "usstock_SecurityType2", "Exchange", "SecType"],
+        fields=["Symbol", "Name", "usstock_SecurityType2"]
     )
-    if usstock_security_type2:
-        df = df[df["usstock_SecurityType2"].isin(usstock_security_type2)]
     cap = min(max_results, 500)
     df = df.head(cap)
+
     result = []
+    if sec_types:
+        df = df[df["usstock_SecurityType2"].isin(sec_types)]
     for sid, row in df.iterrows():
+        sym = row.get("Symbol")
         result.append({
             "sid": str(sid),
-            "symbol": str(row.get("Symbol") or ""),
-            "name": row.get("Name") or None,
-            "security_type": row.get("usstock_SecurityType2") or row.get("SecType") or None,
-            "exchange": row.get("Exchange") or None,
+            "symbol": "" if pd.isna(sym) else str(sym)
         })
     return result
 
@@ -345,11 +244,6 @@ def create_universe(
             "'sids' is an empty list. Call search_securities first to get security IDs, "
             "then pass the 'sid' values here."
         )
-    if _MOCK:
-        count = len(sids) if sids else 0
-        _mock_log("create_universe", code=code, sids=sids, from_universes=from_universes)
-        _MOCK_UNIVERSES[code] = count
-        return {"code": code, "provided": count, "inserted": count, "total_after_insert": count}
     from quantrocket import master
     return master.create_universe(
         code=code,
