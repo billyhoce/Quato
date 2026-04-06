@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 import config
+from mcp_server.external_server import mcp as external_mcp, set_services as set_mcp_services
 from models.backtest_models import (
     BacktestConfig,
     TaskRecord,
@@ -83,6 +84,7 @@ async def lifespan(app: FastAPI):
         )
         await backtest_worker.start()
 
+        set_mcp_services(backtest_queue, object_store)
         logger.info("API ready!")
 
         yield
@@ -102,6 +104,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Mount external MCP server for web Claude users
+app.mount("/mcp", external_mcp.http_app(path="/"))
 
 # CORS — allow frontend dev server and any configured origins
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
