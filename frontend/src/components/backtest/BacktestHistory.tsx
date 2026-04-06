@@ -3,6 +3,7 @@ import { History } from "lucide-react"
 import { useBacktestHistory } from "../../api/hooks"
 import { BacktestStatusBadge } from "./BacktestStatusBadge"
 import { BacktestDetailModal } from "./BacktestDetailModal"
+import { CollapsibleSection } from "../ui/CollapsibleSection"
 import { formatPercent } from "../../lib/utils"
 import type { BacktestHistoryItem } from "../../api/types"
 
@@ -14,12 +15,10 @@ export function BacktestHistory() {
 
   return (
     <>
-      <div className="rounded-lg border border-border p-4 space-y-3">
-        <div className="flex items-center gap-1.5">
-          <History className="w-3.5 h-3.5 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">History</h3>
-        </div>
-
+      <CollapsibleSection
+        title="History"
+        icon={<History className="w-3.5 h-3.5 text-muted-foreground" />}
+      >
         {backtests.length === 0 ? (
           <p className="text-xs text-muted-foreground">No backtests yet.</p>
         ) : (
@@ -51,7 +50,7 @@ export function BacktestHistory() {
             ))}
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
       <BacktestDetailModal
         open={!!selected}

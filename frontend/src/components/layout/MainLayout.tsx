@@ -44,7 +44,7 @@ export function MainLayout() {
   }, [])
 
   const handleRunBacktest = useCallback(
-    (config: { start_date: string; end_date: string; capital_base: number }) => {
+    (config: { bundle: string; start_date: string; end_date: string; capital_base: number }) => {
       startBacktest.mutate(config, {
         onSuccess: (data) => {
           setActiveTaskId(data.task_id)

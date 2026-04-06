@@ -9,7 +9,7 @@ interface SidebarProps {
   onClose: () => void
   hasStrategy: boolean
   onViewCode: () => void
-  onRunBacktest: (config: { start_date: string; end_date: string; capital_base: number }) => void
+  onRunBacktest: (config: { bundle: string; start_date: string; end_date: string; capital_base: number }) => void
   isRunning: boolean
 }
 

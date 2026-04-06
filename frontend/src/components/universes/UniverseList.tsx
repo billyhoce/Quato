@@ -2,6 +2,7 @@ import { useState } from "react"
 import { createPortal } from "react-dom"
 import { Globe, X, ChevronRight } from "lucide-react"
 import { useUniverses, useUniverseSecurities } from "../../api/hooks"
+import { CollapsibleSection } from "../ui/CollapsibleSection"
 import type { UniverseItem } from "../../api/types"
 
 function UniverseSecuritiesPanel({
@@ -85,12 +86,10 @@ export function UniverseList() {
 
   return (
     <>
-      <div className="rounded-lg border border-border p-4 space-y-3">
-        <div className="flex items-center gap-1.5">
-          <Globe className="w-3.5 h-3.5 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Universes</h3>
-        </div>
-
+      <CollapsibleSection
+        title="Universes"
+        icon={<Globe className="w-3.5 h-3.5 text-muted-foreground" />}
+      >
         {isLoading ? (
           <p className="text-xs text-muted-foreground">Loading...</p>
         ) : universes.length === 0 ? (
@@ -115,7 +114,7 @@ export function UniverseList() {
             ))}
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
       {selected && (
         <UniverseSecuritiesPanel
