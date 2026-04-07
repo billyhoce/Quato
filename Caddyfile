@@ -1,4 +1,4 @@
-app.quato.space {
+app.quato.space:8443 {
     tls {
         dns cloudflare {env.CF_API_TOKEN}
     }
