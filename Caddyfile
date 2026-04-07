@@ -1,4 +1,4 @@
-app.quato.space:8443 {
+app.quato.space {
     tls {
         dns cloudflare {env.CF_API_TOKEN}
     }
@@ -6,7 +6,7 @@ app.quato.space:8443 {
     handle /api/* {
         reverse_proxy quato-backend:8000
     }
-    handle /mcp/* {
+    handle /mcp* {
         reverse_proxy quato-backend:8000
     }
     handle /health {
