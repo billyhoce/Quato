@@ -5,7 +5,7 @@ status tools over HTTP (streamable-http transport), mounted in FastAPI at /mcp.
 """
 from fastmcp import FastMCP
 
-from mcp_server.tools import (
+from agent_backend.mcp_server.tools import (
     ZIPLINE_CATEGORIES,
     PIPELINE_CATEGORIES,
     get_functions_in_category,
@@ -22,7 +22,7 @@ from mcp_server.tools import (
 mcp = FastMCP("QuatoExternal")
 
 # ---------------------------------------------------------------------------
-# Service injection — called from api/main.py lifespan after init
+# Service injection — called from agent_backend/api/main.py lifespan after init
 # ---------------------------------------------------------------------------
 
 _backtest_queue = None

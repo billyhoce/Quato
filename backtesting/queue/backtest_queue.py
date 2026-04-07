@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import redis.asyncio as redis
 
 import config
-from models.backtest_models import TaskRecord, TaskStatus
+from backtesting.models.backtest_models import TaskRecord, TaskStatus
 
 logger = logging.getLogger(__name__)
 

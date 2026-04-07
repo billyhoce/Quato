@@ -3,15 +3,15 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
-# Ensure the project root is on sys.path so `mcp_server.tools` is importable
+# Ensure the project root is on sys.path so all packages are importable
 # whether this file is run as a standalone script or as part of the FastAPI app.
-_project_root = str(Path(__file__).parent.parent)
+_project_root = str(Path(__file__).parent.parent.parent)
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from fastmcp import FastMCP
 
-from mcp_server.tools import (
+from agent_backend.mcp_server.tools import (
     ZIPLINE_CATEGORIES,
     PIPELINE_CATEGORIES,
     get_functions_in_category,
@@ -21,8 +21,8 @@ from mcp_server.tools import (
     create_universe,
     make_backtest_tools,
 )
-from services.backtest_queue import BacktestQueue
-from services.object_store import ObjectStoreService
+from backtesting.queue.backtest_queue import BacktestQueue
+from backtesting.storage.object_store import ObjectStoreService
 
 
 @asynccontextmanager

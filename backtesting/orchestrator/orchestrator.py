@@ -9,20 +9,20 @@ from typing import TYPE_CHECKING, Optional, Tuple
 from dotenv import load_dotenv
 
 # Load .env BEFORE importing quantrocket (it needs HOUSTON_URL at import time)
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 from quantrocket import zipline
 from requests.exceptions import HTTPError
 
-from models.backtest_models import BacktestConfig, BacktestResults
-from backtesting_orchestrator.utils import (
+from backtesting.models.backtest_models import BacktestConfig, BacktestResults
+from backtesting.orchestrator.utils import (
     upload_file_to_github,
     pull_files_from_github_to_quantrocket,
     wait_for_ingestion,
 )
 
 if TYPE_CHECKING:
-    from services.object_store import ObjectStoreService
+    from backtesting.storage.object_store import ObjectStoreService
 
 # Constants
 INGESTION_POLL_INTERVAL = 20  # seconds

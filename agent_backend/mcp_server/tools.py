@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 from quantrocket import master
 
-from models.backtest_models import (
+from backtesting.models.backtest_models import (
     BacktestConfig,
     TaskRecord,
     TaskStatus,

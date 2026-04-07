@@ -47,7 +47,7 @@ _PROJECT_ROOT = Path(__file__).parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from mcp_server.quato_server import (  # noqa: E402 — must come after sys.modules patch
+from agent_backend.mcp_server.quato_server import (  # noqa: E402 — must come after sys.modules patch
     create_universe as _create_universe_tool,
     list_universes as _list_universes_tool,
     search_securities as _search_securities_tool,

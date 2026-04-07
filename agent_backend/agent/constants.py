@@ -16,6 +16,9 @@ State management:
 - Store only simple scalars, lists, or dictionaries in context.
 - Do not store complex objects (calendars, loggers, classes) in context.
 - Use module-level constants for parameters that do not change during the backtest.
+- Asset objects must not be stored on context inside initialize() Zipline forbids storing Asset objects (or lists/dicts containing them) on the context inside initialize(). 
+    - This includes anything returned by algo.sid(). All asset lookups must happen inside before_trading_start() or scheduled functions. 
+    - Only SID strings, scalars, and other non-asset values may be initialised on context in initialize().
 
 Data access:
 - Prefer Zipline Pipeline for data access and computations whenever possible.
@@ -80,12 +83,14 @@ Output requirements:
 - Never expose implementation details in your explanation: do not mention variable names, parameter names, type names, class names, API method names, or internal constants. Describe what the strategy does in plain English instead.
 - Do not use tables, bullet lists of implementation specifics, or technical summaries that reference code internals. Instead, describe the strategy's logic, behaviour, and tradeoffs in natural prose.
 - For example, instead of saying "days_until_earnings == 1 triggers a MarketOnCloseOrder sized at 1/MAX_POSITIONS", say "the strategy enters positions at the close of the trading day before earnings, with equal sizing across all active trades".
+- Avoid non-ASCII characters in strategy code Always use plain ASCII characters throughout the entire strategy file — in comments, docstrings, and strings. 
 
 Example Zipline strategy file structure:
 
 import zipline.api as algo
 from zipline.pipeline import Pipeline, EquityPricing, master
 from zipline.pipeline.factors import SimpleMovingAverage
+from zipline.pipeline.filters import StaticUniverse
 
 def initialize(context: algo.Context):
     """
@@ -97,6 +102,11 @@ def initialize(context: algo.Context):
 
     # Set the initial universe to all common stocks and apply a price filter for stocks above $5.
     are_common_stocks = master.SecuritiesMaster.usstock_SecurityType2.latest.eq("Common Stock")
+
+    # If using a custom universe, use the following filter instead of the common stock filter above:
+    are_in_custom_universe = master.SecuritiesMaster.universe.latest.eq("custom-universe")
+
+    # apply a price filter for stocks above $5.
     are_above_5 = EquityPricing.close.latest >= 5
 
     pipe = Pipeline(

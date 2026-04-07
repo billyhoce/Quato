@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from models.backtest_models import (
+from backtesting.models.backtest_models import (
     BacktestConfig,
     BacktestResults,
     TaskRecord,
@@ -18,7 +18,8 @@ from models.backtest_models import (
 # Absolute path to the checked-in sample CSV used to validate the parser.
 SAMPLE_CSV = (
     Path(__file__).parent.parent.parent
-    / "backtesting_orchestrator"
+    / "backtesting"
+    / "orchestrator"
     / "sample_backtest.csv"
 )
 

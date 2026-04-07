@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Optional
 
 import config
-from models.backtest_models import BacktestConfig, BacktestResults, TaskStatus
-from services.backtest_queue import BacktestQueue
-from services.object_store import ObjectStoreService
-from backtesting_orchestrator.orchestrator import BacktestingOrchestrator
+from backtesting.models.backtest_models import BacktestConfig, BacktestResults, TaskStatus
+from backtesting.queue.backtest_queue import BacktestQueue
+from backtesting.storage.object_store import ObjectStoreService
+from backtesting.orchestrator import BacktestingOrchestrator
 
 logger = logging.getLogger(__name__)
 

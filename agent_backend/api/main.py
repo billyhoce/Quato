@@ -16,27 +16,27 @@ from dotenv import load_dotenv
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 import config
-from mcp_server.external_server import mcp as external_mcp, set_services as set_mcp_services
+from agent_backend.mcp_server.external_server import mcp as external_mcp, set_services as set_mcp_services
 
 # Build the MCP ASGI sub-app once so we can wire its lifespan into ours
 _mcp_http_app = external_mcp.http_app(path="/")
-from models.backtest_models import (
+from backtesting.models.backtest_models import (
     BacktestConfig,
     TaskRecord,
     TaskStatus,
     US_FREE_STOCK_BUNDLE_DAILY,
 )
-from services.agent_service import AgentService
-from services.strategy_manager import StrategyManager
-from services.backtest_queue import BacktestQueue
-from services.backtest_worker import BacktestWorker
-from services.object_store import ObjectStoreService
+from agent_backend.agent.agent_service import AgentService
+from agent_backend.agent.strategy_manager import StrategyManager
+from backtesting.queue.backtest_queue import BacktestQueue
+from backtesting.queue.backtest_worker import BacktestWorker
+from backtesting.storage.object_store import ObjectStoreService
 
 # Load environment variables from project root
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # Configure logging
-log_file = Path(__file__).parent.parent / "coder_agent.log"
+log_file = Path(__file__).parent.parent.parent / "coder_agent.log"
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -78,7 +78,7 @@ async def lifespan(app: FastAPI):
             if failed_count > 0:
                 logger.info(f"Marked {failed_count} orphaned tasks as failed")
 
-            base_dir = Path(__file__).parent.parent
+            base_dir = Path(__file__).parent.parent.parent
             backtest_worker = BacktestWorker(
                 queue=backtest_queue,
                 base_dir=base_dir,
