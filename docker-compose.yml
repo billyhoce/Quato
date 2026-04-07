@@ -33,10 +33,14 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
     container_name: quato-caddy
     ports:
       - "8443:8443"
+    environment:
+      CF_API_TOKEN: ${CF_API_TOKEN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./frontend/dist:/srv/frontend
