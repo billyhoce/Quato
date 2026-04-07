@@ -239,6 +239,20 @@ def create_universe(
     )
 
 
+def delete_universe(code: str) -> dict[str, Any]:
+    """Delete a QuantRocket universe by name.
+
+    Permanently removes the named universe. Underlying securities are
+    unaffected — only the grouping is removed.
+
+    Parameters
+    ----------
+    code : str
+        Name of the universe to delete (e.g. "tech-stocks").
+    """
+    return master.delete_universe(code)
+
+
 # ---------------------------------------------------------------------------
 # Shared backtest tool implementations
 # ---------------------------------------------------------------------------

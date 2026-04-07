@@ -450,6 +450,17 @@ async def get_universe_securities(name: str):
     )
 
 
+@app.delete("/api/universes/{name}", status_code=200)
+async def delete_universe(name: str):
+    """Delete a QuantRocket universe by name."""
+    import quantrocket.master as qr_master
+    try:
+        result = await asyncio.to_thread(qr_master.delete_universe, name)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return result
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""

@@ -15,6 +15,7 @@ from agent_backend.mcp_server.tools import (
     list_universes,
     search_securities,
     create_universe,
+    delete_universe,
     _submit_backtest_impl,
     _get_backtest_results_impl,
     _wait_for_backtest_impl,
@@ -69,6 +70,7 @@ mcp.tool(get_function_or_class_details)
 mcp.tool(list_universes)
 mcp.tool(search_securities)
 mcp.tool(create_universe)
+mcp.tool(delete_universe)
 
 
 # ---------------------------------------------------------------------------

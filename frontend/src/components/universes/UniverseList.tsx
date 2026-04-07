@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { createPortal } from "react-dom"
-import { Globe, X, ChevronRight } from "lucide-react"
-import { useUniverses, useUniverseSecurities } from "../../api/hooks"
+import { Globe, X, ChevronRight, Trash2 } from "lucide-react"
+import { useUniverses, useUniverseSecurities, useDeleteUniverse } from "../../api/hooks"
 import { CollapsibleSection } from "../ui/CollapsibleSection"
 import type { UniverseItem } from "../../api/types"
 
@@ -81,8 +81,16 @@ function UniverseSecuritiesPanel({
 export function UniverseList() {
   const { data, isLoading } = useUniverses()
   const [selected, setSelected] = useState<UniverseItem | null>(null)
+  const [deletingName, setDeletingName] = useState<string | null>(null)
+  const deleteMutation = useDeleteUniverse()
 
   const universes = data?.universes ?? []
+
+  const handleDelete = (e: React.MouseEvent, name: string) => {
+    e.stopPropagation()
+    setDeletingName(name)
+    deleteMutation.mutate(name, { onSettled: () => setDeletingName(null) })
+  }
 
   return (
     <>
@@ -97,20 +105,32 @@ export function UniverseList() {
         ) : (
           <div className="space-y-1.5 max-h-[240px] overflow-y-auto">
             {universes.map((u) => (
-              <button
+              <div
                 key={u.name}
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelected(u)}
-                className="w-full text-left rounded-md border border-border p-2 hover:bg-secondary/50
-                           transition-colors text-xs flex items-center justify-between"
+                onKeyDown={(e) => e.key === "Enter" && setSelected(u)}
+                className="group w-full text-left rounded-md border border-border p-2 hover:bg-secondary/50
+                           transition-colors text-xs flex items-center justify-between cursor-pointer"
               >
                 <span className="font-medium truncate">{u.name}</span>
                 <div className="flex items-center gap-1.5 shrink-0 ml-2">
                   <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
                     {u.security_count}
                   </span>
+                  <button
+                    onClick={(e) => handleDelete(e, u.name)}
+                    disabled={deletingName === u.name}
+                    className="p-0.5 rounded hover:bg-destructive/20 transition-colors opacity-0 group-hover:opacity-100
+                               disabled:opacity-30"
+                    aria-label={`Delete ${u.name}`}
+                  >
+                    <Trash2 className="w-3 h-3 text-destructive" />
+                  </button>
                   <ChevronRight className="w-3 h-3 text-muted-foreground" />
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}

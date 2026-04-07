@@ -118,3 +118,14 @@ export function useUniverseSecurities(name: string | null) {
     staleTime: 60_000,
   })
 }
+
+export function useDeleteUniverse() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) =>
+      apiFetch<{ status: string }>(`/universes/${name}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["universes"] })
+    },
+  })
+}
