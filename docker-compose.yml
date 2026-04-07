@@ -47,6 +47,7 @@ services:
     container_name: quato-caddy
     ports:
       - "8443:8443"
+      - "9443:9443"
     environment:
       CF_API_TOKEN: ${CF_API_TOKEN}
     volumes:
