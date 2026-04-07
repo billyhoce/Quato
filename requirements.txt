@@ -1,25 +1,29 @@
+# Environment
+python-dotenv
+
 # Backtesting orchestrator
 pydantic
 quantrocket-client
-dotenv
-GitPython
+pandas
+requests
 
 # Redis for distributed task queue
-redis>=5.0.0
-redis[hiredis]
+redis[hiredis]>=5.0.0
 
-# MCP dependencies
-mcp
+# Object storage (MinIO/S3)
+boto3
 
 # LangGraph agent dependencies
 langchain
 langchain-mcp-adapters
 langchain-google-genai
 langchain-anthropic
+langgraph
+langgraph-checkpoint-redis
 
-# For jupyter notebook testing and web scraping in parsing API specs
-ipykernel
-beautifulsoup4
+# Google Generative AI (direct client used in strategy_manager)
+google-genai
 
 # Server
 fastapi[standard]
+fastmcp

@@ -1,3 +1,4 @@
+import json
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -48,21 +49,21 @@ mcp = FastMCP("ZiplineStrategy", lifespan=lifespan)
 
 
 @mcp.resource("ziplineApi://zipline_categories")
-def get_zipline_categories() -> list[str]:
+def get_zipline_categories() -> str:
     """Retrieve the available category slugs in the Zipline API.
 
     Use the get_functions_in_category tool with api_type="zipline" and a category slug to see functions in that category.
     """
-    return ZIPLINE_CATEGORIES
+    return json.dumps(ZIPLINE_CATEGORIES)
 
 
 @mcp.resource("ziplineApi://pipeline_categories")
-def get_pipeline_categories() -> list[str]:
+def get_pipeline_categories() -> str:
     """Retrieve the available category slugs in the Pipeline API.
 
     Use the get_functions_in_category tool with api_type="pipeline" and a category slug to see functions in that category.
     """
-    return PIPELINE_CATEGORIES
+    return json.dumps(PIPELINE_CATEGORIES)
 
 
 mcp.tool(get_functions_in_category)

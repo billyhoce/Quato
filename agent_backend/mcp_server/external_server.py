@@ -3,6 +3,8 @@
 Exposes all Zipline/Pipeline API doc tools plus backtest submission and
 status tools over HTTP (streamable-http transport), mounted in FastAPI at /mcp.
 """
+import json
+
 from fastmcp import FastMCP
 
 from agent_backend.mcp_server.tools import (
@@ -41,21 +43,21 @@ def set_services(queue, store) -> None:
 # ---------------------------------------------------------------------------
 
 @mcp.resource("ziplineApi://zipline_categories")
-def get_zipline_categories() -> list[str]:
+def get_zipline_categories() -> str:
     """Retrieve the available category slugs in the Zipline API.
 
     Use the get_functions_in_category tool with api_type="zipline" and a category slug to see functions in that category.
     """
-    return ZIPLINE_CATEGORIES
+    return json.dumps(ZIPLINE_CATEGORIES)
 
 
 @mcp.resource("ziplineApi://pipeline_categories")
-def get_pipeline_categories() -> list[str]:
+def get_pipeline_categories() -> str:
     """Retrieve the available category slugs in the Pipeline API.
 
     Use the get_functions_in_category tool with api_type="pipeline" and a category slug to see functions in that category.
     """
-    return PIPELINE_CATEGORIES
+    return json.dumps(PIPELINE_CATEGORIES)
 
 
 # ---------------------------------------------------------------------------
