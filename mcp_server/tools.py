@@ -4,12 +4,22 @@ These are plain functions (no MCP registration) so they can be imported and
 registered by both the internal stdio server (quato_server.py) and the external
 HTTP server (external_server.py).
 """
+import asyncio
 import json
+import uuid
+from datetime import date as _date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from quantrocket import master
+
+from models.backtest_models import (
+    BacktestConfig,
+    TaskRecord,
+    TaskStatus,
+    US_FREE_STOCK_BUNDLE_DAILY,
+)
 
 # ---------------------------------------------------------------------------
 # API documentation data
@@ -227,3 +237,200 @@ def create_universe(
         append=append,
         replace=replace,
     )
+
+
+# ---------------------------------------------------------------------------
+# Shared backtest tool implementations
+# ---------------------------------------------------------------------------
+
+async def _submit_backtest_impl(
+    queue,
+    object_store,
+    code: str,
+    bundle: str,
+    start_date: str,
+    end_date: str,
+    capital_base: float,
+    session_id: str = "agent",
+) -> dict:
+    if queue is None:
+        return {"error": "Backtest service not available"}
+
+    backtest_config = BacktestConfig(
+        bundle=bundle,
+        start_date=_date.fromisoformat(start_date),
+        end_date=_date.fromisoformat(end_date),
+        capital_base=capital_base,
+    )
+    try:
+        backtest_config.validate_config()
+    except ValueError as e:
+        return {"error": f"Invalid configuration: {e}"}
+
+    task_id = str(uuid.uuid4())
+    record = TaskRecord(
+        task_id=task_id,
+        session_id=session_id,
+        status=TaskStatus.QUEUED,
+        strategy_code=code,
+        config_json=json.dumps(backtest_config.model_dump(mode="json")),
+        created_at=datetime.now(timezone.utc),
+    )
+
+    await queue.create_task(record)
+    await queue.add_to_session(session_id, task_id)
+    await queue.enqueue_task(task_id)
+
+    return {
+        "task_id": task_id,
+        "status": TaskStatus.QUEUED,
+        "message": "Backtest queued. Poll get_backtest_status with this task_id.",
+    }
+
+
+async def _get_backtest_status_impl(queue, task_id: str) -> dict:
+    if queue is None:
+        return {"error": "Backtest service not available"}
+
+    task = await queue.get_task(task_id)
+    if task is None:
+        return {"error": f"Task {task_id!r} not found"}
+
+    result: dict = {"task_id": task.task_id, "status": task.status}
+
+    if task.status == TaskStatus.COMPLETE:
+        result.update({
+            "total_return": task.total_return,
+            "sharpe_ratio": task.sharpe_ratio,
+            "max_drawdown": task.max_drawdown,
+            "execution_time_seconds": task.execution_time,
+        })
+    elif task.status == TaskStatus.FAILED:
+        result["error_message"] = task.error_message
+
+    return result
+
+
+async def _get_backtest_results_impl(queue, object_store, task_id: str) -> dict:
+    if queue is None or object_store is None:
+        return {"error": "Backtest service not available"}
+
+    task = await queue.get_task(task_id)
+    if task is None:
+        return {"error": f"Task {task_id!r} not found"}
+
+    if task.status != TaskStatus.COMPLETE:
+        return {
+            "task_id": task.task_id,
+            "status": task.status,
+            "message": "Backtest is not complete yet. Check status with get_backtest_status.",
+        }
+
+    result: dict = {
+        "task_id": task.task_id,
+        "status": task.status,
+        "total_return": task.total_return,
+        "sharpe_ratio": task.sharpe_ratio,
+        "max_drawdown": task.max_drawdown,
+        "execution_time_seconds": task.execution_time,
+    }
+
+    if task.csv_object_key:
+        result["csv_url"] = await asyncio.to_thread(
+            object_store.get_presigned_download_url, task.csv_object_key
+        )
+
+    if task.tearsheet_object_key:
+        result["tearsheet_url"] = await asyncio.to_thread(
+            object_store.get_presigned_download_url, task.tearsheet_object_key
+        )
+
+    return result
+
+
+def make_backtest_tools(queue, object_store):
+    """Return (submit_backtest, get_backtest_status, get_backtest_results) bound to queue/store.
+
+    Used by quato_server.py (stdio) to register backtest tools at lifespan start
+    when the queue connection is available.
+    """
+
+    async def submit_backtest(
+        code: str,
+        bundle: str = US_FREE_STOCK_BUNDLE_DAILY,
+        start_date: str = "2008-01-01",
+        end_date: str = "2011-12-31",
+        capital_base: float = 100000.0,
+        session_id: str = "agent",
+    ) -> dict:
+        """Submit Zipline strategy Python code for backtesting.
+
+        Enqueues the strategy for execution and returns a task_id. Use
+        get_backtest_status to poll until the backtest completes, then call
+        get_backtest_results for full metrics and download links.
+
+        Parameters
+        ----------
+        code : str
+            Complete Zipline strategy Python source code.
+        bundle : str
+            Data bundle to use. Default is "usstock-learn-1d" (free daily US stocks).
+        start_date : str
+            Backtest start date in YYYY-MM-DD format (default "2008-01-01").
+        end_date : str
+            Backtest end date in YYYY-MM-DD format (default "2011-12-31").
+        capital_base : float
+            Starting capital in USD (default 100,000).
+        session_id : str
+            Session identifier for grouping backtests (pass the current session ID).
+
+        Returns
+        -------
+        dict
+            {"task_id": str, "status": "queued", "message": str}
+        """
+        return await _submit_backtest_impl(
+            queue, object_store, code, bundle, start_date, end_date, capital_base, session_id
+        )
+
+    async def get_backtest_status(task_id: str) -> dict:
+        """Check the status of a submitted backtest.
+
+        Poll this every 30–60 seconds after calling submit_backtest until
+        status is "complete" or "failed".
+
+        Parameters
+        ----------
+        task_id : str
+            The task_id returned by submit_backtest.
+
+        Returns
+        -------
+        dict
+            Always includes "status" (queued/running/complete/failed).
+            On completion also includes: total_return, sharpe_ratio, max_drawdown,
+            execution_time (seconds).
+            On failure includes: error_message.
+        """
+        return await _get_backtest_status_impl(queue, task_id)
+
+    async def get_backtest_results(task_id: str) -> dict:
+        """Get full results for a completed backtest, including download URLs.
+
+        Only call this after get_backtest_status returns status="complete".
+
+        Parameters
+        ----------
+        task_id : str
+            The task_id returned by submit_backtest.
+
+        Returns
+        -------
+        dict
+            Performance metrics plus time-limited presigned URLs (valid 1 hour):
+            - csv_url: direct download link for the full results CSV
+            - tearsheet_url: direct download link for the PDF tear sheet (if available)
+        """
+        return await _get_backtest_results_impl(queue, object_store, task_id)
+
+    return submit_backtest, get_backtest_status, get_backtest_results

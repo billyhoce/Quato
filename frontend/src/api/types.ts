@@ -57,6 +57,7 @@ export interface BacktestHistoryResponse {
 export interface BacktestHistoryItem {
   task_id: string
   status: string
+  session_id: string
   created_at: string
   completed_at: string | null
   success: boolean | null
@@ -76,7 +77,7 @@ export interface SessionMeta {
 
 export interface ChatMessage {
   id: string
-  role: "user" | "agent"
+  role: "user" | "agent" | "system"
   content: string
   timestamp: Date
 }

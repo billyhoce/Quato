@@ -74,10 +74,15 @@ export function useBacktestStatus(taskId: string | null) {
   })
 }
 
-export function useBacktestHistory() {
+interface UseBacktestHistoryOptions {
+  refetchInterval?: number | false
+}
+
+export function useBacktestHistory(options: UseBacktestHistoryOptions = {}) {
   return useQuery({
     queryKey: ["backtestHistory"],
     queryFn: () => apiFetch<BacktestHistoryResponse>("/backtest/history"),
+    ...(options.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {}),
   })
 }
 

@@ -83,8 +83,6 @@ async def lifespan(app: FastAPI):
                 queue=backtest_queue,
                 base_dir=base_dir,
                 object_store=object_store,
-                agent_service=agent_service,  # Enable automatic retry with agent
-                max_retries=config.MAX_AGENT_RETRIES,
             )
             await backtest_worker.start()
 
@@ -327,6 +325,7 @@ async def get_backtest_history():
         {
             "task_id": t.task_id,
             "status": t.status,
+            "session_id": t.session_id,
             "created_at": t.created_at.isoformat(),
             "completed_at": t.completed_at.isoformat() if t.completed_at else None,
             "success": t.success,

@@ -12,6 +12,17 @@ interface ChatMessageProps {
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user"
 
+  if (message.role === "system") {
+    return (
+      <div className="flex w-full justify-center my-1">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 text-muted-foreground text-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
+          {message.content}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
       <div

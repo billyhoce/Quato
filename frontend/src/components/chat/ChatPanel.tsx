@@ -24,9 +24,18 @@ function saveMessages(sessionId: string, messages: ChatMessage[]) {
 interface ChatPanelProps {
   sessionId: string
   onStrategyUpdate: () => void
+  pendingMessage?: { content: string; isSystem: boolean } | null
+  onPendingMessageHandled?: () => void
+  onPendingChange?: (isPending: boolean) => void
 }
 
-export function ChatPanel({ sessionId, onStrategyUpdate }: ChatPanelProps) {
+export function ChatPanel({
+  sessionId,
+  onStrategyUpdate,
+  pendingMessage,
+  onPendingMessageHandled,
+  onPendingChange,
+}: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(sessionId))
   const chatMutation = useChat()
   const { autoRenameSession } = useSession()
@@ -35,11 +44,15 @@ export function ChatPanel({ sessionId, onStrategyUpdate }: ChatPanelProps) {
     saveMessages(sessionId, messages)
   }, [messages, sessionId])
 
+  useEffect(() => {
+    onPendingChange?.(chatMutation.isPending)
+  }, [chatMutation.isPending, onPendingChange])
+
   const handleSend = useCallback(
-    (content: string) => {
+    (content: string, role: "user" | "system" = "user") => {
       const userMsg: ChatMessage = {
         id: crypto.randomUUID(),
-        role: "user",
+        role,
         content,
         timestamp: new Date(),
       }
@@ -80,10 +93,17 @@ export function ChatPanel({ sessionId, onStrategyUpdate }: ChatPanelProps) {
     [chatMutation, onStrategyUpdate, autoRenameSession, sessionId]
   )
 
+  useEffect(() => {
+    if (pendingMessage) {
+      handleSend(pendingMessage.content, pendingMessage.isSystem ? "system" : "user")
+      onPendingMessageHandled?.()
+    }
+  }, [pendingMessage]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <main className="flex-1 flex flex-col min-w-0">
       <MessageList messages={messages} isLoading={chatMutation.isPending} />
-      <ChatInput onSend={handleSend} disabled={chatMutation.isPending} />
+      <ChatInput onSend={(content) => handleSend(content)} disabled={chatMutation.isPending} />
     </main>
   )
 }

@@ -2,15 +2,7 @@
 
 Exposes all Zipline/Pipeline API doc tools plus backtest submission and
 status tools over HTTP (streamable-http transport), mounted in FastAPI at /mcp.
-
-Internal agent uses quato_server.py (stdio) — this server is separate so
-backtest tools are NOT accessible to the internal agent.
 """
-import asyncio
-import json
-import uuid
-from datetime import datetime, timezone
-
 from fastmcp import FastMCP
 
 from mcp_server.tools import (
@@ -21,11 +13,9 @@ from mcp_server.tools import (
     list_universes,
     search_securities,
     create_universe,
-)
-from models.backtest_models import (
-    BacktestConfig,
-    TaskRecord,
-    TaskStatus,
+    _submit_backtest_impl,
+    _get_backtest_status_impl,
+    _get_backtest_results_impl,
     US_FREE_STOCK_BUNDLE_DAILY,
 )
 
@@ -90,6 +80,7 @@ async def submit_backtest(
     start_date: str = "2008-01-01",
     end_date: str = "2011-12-31",
     capital_base: float = 100000.0,
+    session_id: str = "agent",
 ) -> dict:
     """Submit Zipline strategy Python code for backtesting.
 
@@ -109,46 +100,17 @@ async def submit_backtest(
         Backtest end date in YYYY-MM-DD format (default "2011-12-31").
     capital_base : float
         Starting capital in USD (default 100,000).
+    session_id : str
+        Session identifier for grouping backtests (pass the current session ID).
 
     Returns
     -------
     dict
         {"task_id": str, "status": "queued", "message": str}
     """
-    if _backtest_queue is None:
-        return {"error": "Backtest service not available"}
-
-    from datetime import date
-    backtest_config = BacktestConfig(
-        bundle=bundle,
-        start_date=date.fromisoformat(start_date),
-        end_date=date.fromisoformat(end_date),
-        capital_base=capital_base,
+    return await _submit_backtest_impl(
+        _backtest_queue, _object_store, code, bundle, start_date, end_date, capital_base, session_id
     )
-    try:
-        backtest_config.validate_config()
-    except ValueError as e:
-        return {"error": f"Invalid configuration: {e}"}
-
-    task_id = str(uuid.uuid4())
-    record = TaskRecord(
-        task_id=task_id,
-        session_id="mcp",
-        status=TaskStatus.QUEUED,
-        strategy_code=code,
-        config_json=json.dumps(backtest_config.model_dump(mode="json")),
-        created_at=datetime.now(timezone.utc),
-    )
-
-    await _backtest_queue.create_task(record)
-    await _backtest_queue.add_to_session("mcp", task_id)
-    await _backtest_queue.enqueue_task(task_id)
-
-    return {
-        "task_id": task_id,
-        "status": TaskStatus.QUEUED,
-        "message": "Backtest queued. Poll get_backtest_status with this task_id.",
-    }
 
 
 @mcp.tool()
@@ -171,26 +133,7 @@ async def get_backtest_status(task_id: str) -> dict:
         execution_time (seconds).
         On failure includes: error_message.
     """
-    if _backtest_queue is None:
-        return {"error": "Backtest service not available"}
-
-    task = await _backtest_queue.get_task(task_id)
-    if task is None:
-        return {"error": f"Task {task_id!r} not found"}
-
-    result: dict = {"task_id": task.task_id, "status": task.status}
-
-    if task.status == TaskStatus.COMPLETE:
-        result.update({
-            "total_return": task.total_return,
-            "sharpe_ratio": task.sharpe_ratio,
-            "max_drawdown": task.max_drawdown,
-            "execution_time_seconds": task.execution_time,
-        })
-    elif task.status == TaskStatus.FAILED:
-        result["error_message"] = task.error_message
-
-    return result
+    return await _get_backtest_status_impl(_backtest_queue, task_id)
 
 
 @mcp.tool()
@@ -211,37 +154,4 @@ async def get_backtest_results(task_id: str) -> dict:
         - csv_url: direct download link for the full results CSV
         - tearsheet_url: direct download link for the PDF tear sheet (if available)
     """
-    if _backtest_queue is None or _object_store is None:
-        return {"error": "Backtest service not available"}
-
-    task = await _backtest_queue.get_task(task_id)
-    if task is None:
-        return {"error": f"Task {task_id!r} not found"}
-
-    if task.status != TaskStatus.COMPLETE:
-        return {
-            "task_id": task.task_id,
-            "status": task.status,
-            "message": "Backtest is not complete yet. Check status with get_backtest_status.",
-        }
-
-    result: dict = {
-        "task_id": task.task_id,
-        "status": task.status,
-        "total_return": task.total_return,
-        "sharpe_ratio": task.sharpe_ratio,
-        "max_drawdown": task.max_drawdown,
-        "execution_time_seconds": task.execution_time,
-    }
-
-    if task.csv_object_key:
-        result["csv_url"] = await asyncio.to_thread(
-            _object_store.get_presigned_download_url, task.csv_object_key
-        )
-
-    if task.tearsheet_object_key:
-        result["tearsheet_url"] = await asyncio.to_thread(
-            _object_store.get_presigned_download_url, task.tearsheet_object_key
-        )
-
-    return result
+    return await _get_backtest_results_impl(_backtest_queue, _object_store, task_id)
