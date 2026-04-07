@@ -361,12 +361,7 @@ async def get_backtest_result(task_id: str):
 
 @app.get("/api/backtest/{task_id}/download", response_model=BacktestDownloadResponse)
 async def get_backtest_download(task_id: str):
-    """Generate a pre-signed URL for direct download of the backtest results CSV.
-
-    The URL is valid for 1 hour and can be used by the client without
-    further authentication — suitable for passing directly to a download link
-    or a pandas read_csv() call.
-    """
+    """Generate a pre-signed URL for direct download of the backtest results CSV."""
     task = await backtest_queue.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Backtest not found")
@@ -387,10 +382,7 @@ async def get_backtest_download(task_id: str):
 
 @app.get("/api/backtest/{task_id}/tearsheet", response_model=BacktestDownloadResponse)
 async def get_backtest_tearsheet(task_id: str):
-    """Generate a pre-signed URL for direct download of the backtest tear sheet PDF.
-
-    The URL is valid for 1 hour.
-    """
+    """Generate a pre-signed URL for direct download of the backtest tear sheet PDF."""
     task = await backtest_queue.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Backtest not found")
