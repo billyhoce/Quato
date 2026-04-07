@@ -25,7 +25,7 @@ export function BacktestDetailModal({ open, onClose, backtest }: BacktestDetailM
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-card rounded-xl shadow-xl w-full max-w-md mx-4">
+      <div className="relative bg-card rounded-xl shadow-xl w-full max-w-sm mx-4">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold text-sm">Backtest Details</h2>
@@ -78,7 +78,11 @@ export function BacktestDetailModal({ open, onClose, backtest }: BacktestDetailM
 
           {backtest.status === "failed" && backtest.error_message && (
             <div className="rounded-md bg-red-50 border border-red-200 p-3">
-              <p className="text-xs text-red-700 break-words">{backtest.error_message}</p>
+              <p className="text-xs text-red-700 break-words">
+                {backtest.error_message.length > 500
+                  ? backtest.error_message.slice(0, 500) + "…"
+                  : backtest.error_message}
+              </p>
             </div>
           )}
         </div>

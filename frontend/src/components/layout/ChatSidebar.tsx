@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { X, Plus, Pencil } from "lucide-react"
+import { X, Plus, Pencil, Trash2 } from "lucide-react"
 import type { SessionMeta } from "../../api/types"
 
 interface ChatSidebarProps {
@@ -10,6 +10,7 @@ interface ChatSidebarProps {
   onNewChat: () => void
   onSwitch: (id: string) => void
   onRename: (id: string, name: string) => void
+  onDelete: (id: string) => void
 }
 
 function SessionItem({
@@ -17,11 +18,13 @@ function SessionItem({
   isActive,
   onSwitch,
   onRename,
+  onDelete,
 }: {
   session: SessionMeta
   isActive: boolean
   onSwitch: () => void
   onRename: (name: string) => void
+  onDelete: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(session.name)
@@ -79,13 +82,22 @@ function SessionItem({
       </button>
 
       {!editing && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setEditing(true) }}
-          className="shrink-0 p-1.5 mr-1 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-secondary-foreground/10"
-          title="Rename"
-        >
-          <Pencil className="w-3 h-3 text-muted-foreground" />
-        </button>
+        <div className="flex items-center shrink-0 mr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => { e.stopPropagation(); setEditing(true) }}
+            className="p-1.5 rounded hover:bg-secondary-foreground/10"
+            title="Rename"
+          >
+            <Pencil className="w-3 h-3 text-muted-foreground" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="p-1.5 rounded hover:bg-secondary-foreground/10"
+            title="Delete"
+          >
+            <Trash2 className="w-3 h-3 text-muted-foreground hover:text-red-500" />
+          </button>
+        </div>
       )}
     </div>
   )
@@ -99,6 +111,7 @@ export function ChatSidebar({
   onNewChat,
   onSwitch,
   onRename,
+  onDelete,
 }: ChatSidebarProps) {
   return (
     <>
@@ -142,6 +155,7 @@ export function ChatSidebar({
               isActive={session.id === activeSessionId}
               onSwitch={() => onSwitch(session.id)}
               onRename={(name) => onRename(session.id, name)}
+              onDelete={() => onDelete(session.id)}
             />
           ))}
         </div>

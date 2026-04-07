@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query"
 
 export function MainLayout() {
   const queryClient = useQueryClient()
-  const { sessions, activeSessionId, createSession, switchSession, renameSession } = useSession()
+  const { sessions, activeSessionId, createSession, switchSession, renameSession, deleteSession } = useSession()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false)
@@ -137,6 +137,7 @@ export function MainLayout() {
           onNewChat={handleNewChat}
           onSwitch={handleSwitchSession}
           onRename={renameSession}
+          onDelete={deleteSession}
         />
         <ChatPanel
           key={activeSessionId}

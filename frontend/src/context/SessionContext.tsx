@@ -52,6 +52,7 @@ interface SessionContextValue {
   switchSession: (id: string) => void
   renameSession: (id: string, name: string) => void
   autoRenameSession: (id: string, name: string) => void
+  deleteSession: (id: string) => void
 }
 
 const SessionContext = createContext<SessionContextValue>({
@@ -61,6 +62,7 @@ const SessionContext = createContext<SessionContextValue>({
   switchSession: () => {},
   renameSession: () => {},
   autoRenameSession: () => {},
+  deleteSession: () => {},
 })
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -121,9 +123,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const deleteSession = useCallback((id: string) => {
+    localStorage.removeItem(`quato_messages_${id}`)
+    setSessions((prev) => {
+      const next = prev.filter((s) => s.id !== id)
+      if (next.length === 0) {
+        const fresh = createNewSession()
+        saveSessions([fresh])
+        setActiveSessionId(fresh.id)
+        return [fresh]
+      }
+      saveSessions(next)
+      setActiveSessionId((current) => {
+        if (current !== id) return current
+        return next[0].id
+      })
+      return next
+    })
+  }, [])
+
   return (
     <SessionContext.Provider
-      value={{ sessions, activeSessionId, createSession, switchSession, renameSession, autoRenameSession }}
+      value={{ sessions, activeSessionId, createSession, switchSession, renameSession, autoRenameSession, deleteSession }}
     >
       {children}
     </SessionContext.Provider>

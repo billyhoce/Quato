@@ -26,7 +26,7 @@ export function Sidebar({ open, onClose, hasStrategy, onViewCode, onRunBacktest,
       <aside
         className={`
           fixed md:relative z-40 md:z-auto
-          top-0 right-0 h-full w-[380px] bg-card border-l border-border
+          top-0 right-0 h-full w-[460px] bg-card border-l border-border
           flex flex-col overflow-y-auto
           transition-transform duration-200
           ${open ? "translate-x-0" : "translate-x-full md:translate-x-0"}
