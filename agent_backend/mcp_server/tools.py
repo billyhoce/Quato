@@ -348,6 +348,51 @@ async def _get_backtest_results_impl(queue, object_store, task_id: str) -> dict:
     return result
 
 
+async def _wait_for_backtest_impl(
+    queue,
+    object_store,
+    task_id: str,
+    timeout_seconds: int = 300,
+) -> dict:
+    """Poll until the task is complete/failed or timeout_seconds elapses.
+
+    Returns full results on success, error details on failure, or a timeout
+    message instructing the caller to invoke again.
+    """
+    if queue is None or object_store is None:
+        return {"error": "Backtest service not available"}
+
+    poll_interval = 10
+    elapsed = 0
+
+    while elapsed < timeout_seconds:
+        task = await queue.get_task(task_id)
+        if task is None:
+            return {"error": f"Task {task_id!r} not found"}
+
+        if task.status == TaskStatus.COMPLETE:
+            return await _get_backtest_results_impl(queue, object_store, task_id)
+
+        if task.status == TaskStatus.FAILED:
+            return {
+                "task_id": task.task_id,
+                "status": task.status,
+                "error_message": task.error_message,
+            }
+
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+    return {
+        "task_id": task_id,
+        "status": "pending",
+        "message": (
+            f"Backtest did not complete within {timeout_seconds} seconds. "
+            "Call wait_for_backtest again with the same task_id to keep waiting."
+        ),
+    }
+
+
 def make_backtest_tools(queue, object_store):
     """Return (submit_backtest, get_backtest_status, get_backtest_results) bound to queue/store.
 

@@ -16,8 +16,8 @@ from agent_backend.mcp_server.tools import (
     search_securities,
     create_universe,
     _submit_backtest_impl,
-    _get_backtest_status_impl,
     _get_backtest_results_impl,
+    _wait_for_backtest_impl,
     US_FREE_STOCK_BUNDLE_DAILY,
 )
 
@@ -86,9 +86,8 @@ async def submit_backtest(
 ) -> dict:
     """Submit Zipline strategy Python code for backtesting.
 
-    Enqueues the strategy for execution and returns a task_id. Use
-    get_backtest_status to poll until the backtest completes, then call
-    get_backtest_results for full metrics and download links.
+    Enqueues the strategy for execution and returns a task_id. Call
+    wait_for_backtest immediately after to block until the backtest completes.
 
     Parameters
     ----------
@@ -116,26 +115,31 @@ async def submit_backtest(
 
 
 @mcp.tool()
-async def get_backtest_status(task_id: str) -> dict:
-    """Check the status of a submitted backtest.
+async def wait_for_backtest(task_id: str, timeout_seconds: int = 300) -> dict:
+    """Wait for a submitted backtest to finish and return its full results.
 
-    Poll this every 30–60 seconds after calling submit_backtest until
-    status is "complete" or "failed".
+    Blocks server-side until the backtest completes or fails, or until
+    timeout_seconds elapses. If it times out, call this tool again with the
+    same task_id to keep waiting — the backtest continues running.
 
     Parameters
     ----------
     task_id : str
         The task_id returned by submit_backtest.
+    timeout_seconds : int
+        How long to wait before returning a timeout response (default 300s).
 
     Returns
     -------
     dict
-        Always includes "status" (queued/running/complete/failed).
-        On completion also includes: total_return, sharpe_ratio, max_drawdown,
-        execution_time (seconds).
-        On failure includes: error_message.
+        On success: full results including total_return, sharpe_ratio,
+        max_drawdown, execution_time_seconds, csv_url, tearsheet_url.
+        On failure: status="failed" and error_message.
+        On timeout: status="pending" and a message to call again.
     """
-    return await _get_backtest_status_impl(_backtest_queue, task_id)
+    return await _wait_for_backtest_impl(
+        _backtest_queue, _object_store, task_id, timeout_seconds
+    )
 
 
 @mcp.tool()
