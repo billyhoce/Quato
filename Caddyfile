@@ -1,3 +1,11 @@
+minio.quato.space:8443 {
+    tls {
+        dns cloudflare {env.CF_API_TOKEN}
+    }
+
+    reverse_proxy minio:9000
+}
+
 app.quato.space:8443 {
     tls {
         dns cloudflare {env.CF_API_TOKEN}

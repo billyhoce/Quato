@@ -31,6 +31,9 @@ class ObjectStoreService:
     def __init__(self) -> None:
         endpoint = os.getenv("OBJECT_STORE_ENDPOINT") or None  # empty string → None
         self.bucket = os.getenv("OBJECT_STORE_BUCKET", "quato-backtests")
+        # Public URL used to rewrite presigned URLs for external access.
+        # e.g. https://minio.yourdomain.com  (no trailing slash)
+        self._public_endpoint = os.getenv("OBJECT_STORE_PUBLIC_ENDPOINT") or None
 
         self._client = boto3.client(
             "s3",
@@ -42,8 +45,9 @@ class ObjectStoreService:
             config=Config(signature_version="s3v4"),
         )
         logger.info(
-            "ObjectStoreService configured — endpoint=%s, bucket=%s",
+            "ObjectStoreService configured — endpoint=%s, public=%s, bucket=%s",
             endpoint or "AWS S3",
+            self._public_endpoint or "same as endpoint",
             self.bucket,
         )
 
@@ -107,8 +111,12 @@ class ObjectStoreService:
         Returns:
             A time-limited HTTPS URL the client can GET directly.
         """
-        return self._client.generate_presigned_url(
+        url = self._client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self.bucket, "Key": object_key},
             ExpiresIn=expires_in,
         )
+        if self._public_endpoint and self._client.meta.endpoint_url:
+            # Replace the internal Docker hostname with the public-facing URL.
+            url = url.replace(self._client.meta.endpoint_url, self._public_endpoint, 1)
+        return url
