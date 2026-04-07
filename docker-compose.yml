@@ -4,7 +4,9 @@ services:
     container_name: quato-redis
     ports:
       - "6379:6379"
-    command: redis-server --save "" --loglevel warning
+    command: redis-server --save "60 1" --appendonly yes --loglevel warning
+    volumes:
+      - redis_data:/data
     restart: unless-stopped
 
   minio:

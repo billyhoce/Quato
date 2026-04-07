@@ -3,7 +3,9 @@ minio.quato.space:9443 {
         dns cloudflare {env.CF_API_TOKEN}
     }
 
-    reverse_proxy minio:9000
+    reverse_proxy minio:9000 {
+        header_up Host {http.request.host}
+    }
 }
 
 app.quato.space:8443 {
