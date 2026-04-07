@@ -39,6 +39,7 @@ services:
       - "8443:8443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./frontend/dist:/srv/frontend
       - caddy_data:/data
     restart: unless-stopped
 
