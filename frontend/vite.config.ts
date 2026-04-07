@@ -12,7 +12,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': { target: 'http://localhost:8000', changeOrigin: true },
+      '/api': { target: process.env.BACKEND_URL ?? 'http://localhost:8000', changeOrigin: true },
+      '/mcp': { target: process.env.BACKEND_URL ?? 'http://localhost:8000', changeOrigin: true },
+      '/health': { target: process.env.BACKEND_URL ?? 'http://localhost:8000', changeOrigin: true },
     },
   },
 })

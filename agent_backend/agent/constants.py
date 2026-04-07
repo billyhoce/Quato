@@ -104,7 +104,7 @@ def initialize(context: algo.Context):
     are_common_stocks = master.SecuritiesMaster.usstock_SecurityType2.latest.eq("Common Stock")
 
     # If using a custom universe, use the following filter instead of the common stock filter above:
-    are_in_custom_universe = master.SecuritiesMaster.universe.latest.eq("custom-universe")
+    are_in_custom_universe = StaticUniverse("custom-universe")
 
     # apply a price filter for stocks above $5.
     are_above_5 = EquityPricing.close.latest >= 5
