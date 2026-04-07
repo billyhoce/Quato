@@ -34,8 +34,8 @@ interface BacktestConfigFormProps {
 
 export function BacktestConfigForm({ hasStrategy, onRun, isRunning }: BacktestConfigFormProps) {
   const [bundle, setBundle] = useState<BundleKey>("usstock-learn-1d")
-  const [startDate, setStartDate] = useState(BUNDLES["usstock-learn-1d"].defaultStart)
-  const [endDate, setEndDate] = useState(BUNDLES["usstock-learn-1d"].defaultEnd)
+  const [startDate, setStartDate] = useState<string>(BUNDLES["usstock-learn-1d"].defaultStart)
+  const [endDate, setEndDate] = useState<string>(BUNDLES["usstock-learn-1d"].defaultEnd)
   const [capitalBase, setCapitalBase] = useState("100000")
 
   const bundleInfo = BUNDLES[bundle]
