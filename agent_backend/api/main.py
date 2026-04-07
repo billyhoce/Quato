@@ -11,7 +11,6 @@ from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
@@ -111,16 +110,6 @@ app = FastAPI(
 # Mount external MCP server for web Claude users
 app.mount("/mcp", _mcp_http_app)
 
-_MCP_API_KEY = os.getenv("MCP_API_KEY")
-
-
-@app.middleware("http")
-async def mcp_auth_middleware(request: Request, call_next):
-    if request.url.path.startswith("/mcp") and _MCP_API_KEY:
-        api_key = request.headers.get("X-API-Key") or request.headers.get("Authorization", "").removeprefix("Bearer ")
-        if api_key != _MCP_API_KEY:
-            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
-    return await call_next(request)
 
 # CORS — allow frontend dev server and any configured origins
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")

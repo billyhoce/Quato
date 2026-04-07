@@ -1,4 +1,9 @@
-This repo contains a agent that helps convert natural language trading strategies into quantrocket's zipline backtesting code, and users can use the UI to start backtests using the generated code. If the code is invalid or throws an error when the backtest is started, it will be sent back to the agent along with the error to regenerate the code.
+This repo contains three components, a backtesting adapter for quantrocket's zipline backtesting including a redis queue management system, a agent backend that contains an MCP server that exposes backtesting capabilities to agents as well as a implementation of an agent, and lastly a frontend component.
+
+The idea is to allow agents to draft backtesting strategies from plaintext and automatically backtest them and review the results with the user.
+
+My deployment architecture:
+1 singular instance, hosting quantrocket, backend, and frontend in docker containers. Routing is handled with caddy.
 
 Repository structure:
 - frontend/: React UI
