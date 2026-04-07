@@ -110,20 +110,6 @@ app = FastAPI(
 # Mount external MCP server for web Claude users
 app.mount("/mcp", _mcp_http_app)
 
-
-# Rewrite exact /mcp to /mcp/ before Starlette's Mount sees it,
-# preventing the trailing-slash redirect that breaks Claude.ai's MCP client.
-_inner = app
-
-class _MCPSlashFix:
-    async def __call__(self, scope, receive, send):
-        if scope.get("type") == "http" and scope.get("path") == "/mcp":
-            scope = {**scope, "path": "/mcp/", "raw_path": b"/mcp/"}
-        await _inner(scope, receive, send)
-
-app = _MCPSlashFix()
-
-
 # CORS — allow frontend dev server and any configured origins
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
@@ -469,6 +455,20 @@ async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "Quato Strategy Coder API"}
 
+
+# Rewrite exact /mcp to /mcp/ before Starlette's Mount sees it,
+# preventing the trailing-slash redirect that breaks Claude.ai's MCP client.
+_inner = app
+
+
+class _MCPSlashFix:
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("path") == "/mcp":
+            scope = {**scope, "path": "/mcp/", "raw_path": b"/mcp/"}
+        await _inner(scope, receive, send)
+
+
+app = _MCPSlashFix()
 
 if __name__ == "__main__":
     import uvicorn
