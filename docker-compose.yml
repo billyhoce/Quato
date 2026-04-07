@@ -1,6 +1,6 @@
 services:
   redis:
-    image:  redis:8-alpine
+    image: redis:8-alpine
     container_name: quato-redis
     ports:
       - "6379:6379"
@@ -21,6 +21,28 @@ services:
     command: server /data --console-address ":9001"
     restart: unless-stopped
 
+  quato-backend:
+    build: .
+    container_name: quato-backend
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+      - minio
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    container_name: quato-caddy
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+    restart: unless-stopped
+
 volumes:
   redis_data:
   minio_data:
+  caddy_data:
