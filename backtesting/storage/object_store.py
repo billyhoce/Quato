@@ -35,15 +35,17 @@ class ObjectStoreService:
         # e.g. https://minio.yourdomain.com  (no trailing slash)
         self._public_endpoint = os.getenv("OBJECT_STORE_PUBLIC_ENDPOINT") or None
 
-        self._client = boto3.client(
-            "s3",
-            endpoint_url=endpoint,
+        credentials = dict(
             aws_access_key_id=os.getenv("OBJECT_STORE_ACCESS_KEY"),
             aws_secret_access_key=os.getenv("OBJECT_STORE_SECRET_KEY"),
             region_name=os.getenv("OBJECT_STORE_REGION", "us-east-1"),
-            # s3v4 signing is required by MinIO and works with AWS S3
             config=Config(signature_version="s3v4"),
         )
+        # Internal client used for uploads and bucket operations.
+        self._client = boto3.client("s3", endpoint_url=endpoint, **credentials)
+        # Presign client uses the public endpoint so signatures are valid externally.
+        presign_endpoint = self._public_endpoint or endpoint
+        self._presign_client = boto3.client("s3", endpoint_url=presign_endpoint, **credentials)
         logger.info(
             "ObjectStoreService configured — endpoint=%s, public=%s, bucket=%s",
             endpoint or "AWS S3",
@@ -111,12 +113,8 @@ class ObjectStoreService:
         Returns:
             A time-limited HTTPS URL the client can GET directly.
         """
-        url = self._client.generate_presigned_url(
+        return self._presign_client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self.bucket, "Key": object_key},
             ExpiresIn=expires_in,
         )
-        if self._public_endpoint and self._client.meta.endpoint_url:
-            # Replace the internal Docker hostname with the public-facing URL.
-            url = url.replace(self._client.meta.endpoint_url, self._public_endpoint, 1)
-        return url
