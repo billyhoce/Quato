@@ -34,9 +34,9 @@ async def lifespan(server: FastMCP) -> AsyncIterator[None]:
     store = ObjectStoreService() # reads OBJECT_STORE_* from env; only constructs boto3 client
     await queue.connect()
 
-    submit_backtest, get_backtest_status, get_backtest_results = make_backtest_tools(queue, store)
+    submit_backtest, wait_for_backtest, get_backtest_results = make_backtest_tools(queue, store)
     server.tool(submit_backtest)
-    server.tool(get_backtest_status)
+    server.tool(wait_for_backtest)
     server.tool(get_backtest_results)
 
     try:

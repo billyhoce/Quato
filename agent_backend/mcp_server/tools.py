@@ -408,7 +408,7 @@ async def _wait_for_backtest_impl(
 
 
 def make_backtest_tools(queue, object_store):
-    """Return (submit_backtest, get_backtest_status, get_backtest_results) bound to queue/store.
+    """Return (submit_backtest, wait_for_backtest, get_backtest_results) bound to queue/store.
 
     Used by quato_server.py (stdio) to register backtest tools at lifespan start
     when the queue connection is available.
@@ -424,9 +424,8 @@ def make_backtest_tools(queue, object_store):
     ) -> dict:
         """Submit Zipline strategy Python code for backtesting.
 
-        Enqueues the strategy for execution and returns a task_id. Use
-        get_backtest_status to poll until the backtest completes, then call
-        get_backtest_results for full metrics and download links.
+        Enqueues the strategy for execution and returns a task_id. Call
+        wait_for_backtest immediately after to block until the backtest completes.
 
         Parameters
         ----------
@@ -452,31 +451,34 @@ def make_backtest_tools(queue, object_store):
             queue, object_store, code, bundle, start_date, end_date, capital_base, session_id
         )
 
-    async def get_backtest_status(task_id: str) -> dict:
-        """Check the status of a submitted backtest.
+    async def wait_for_backtest(task_id: str, timeout_seconds: int = 300) -> dict:
+        """Wait for a submitted backtest to finish and return its full results.
 
-        Poll this every 30–60 seconds after calling submit_backtest until
-        status is "complete" or "failed".
+        Blocks server-side until the backtest completes or fails, or until
+        timeout_seconds elapses. If it times out, call this tool again with the
+        same task_id to keep waiting — the backtest continues running.
 
         Parameters
         ----------
         task_id : str
             The task_id returned by submit_backtest.
+        timeout_seconds : int
+            How long to wait before returning a timeout response (default 300s).
 
         Returns
         -------
         dict
-            Always includes "status" (queued/running/complete/failed).
-            On completion also includes: total_return, sharpe_ratio, max_drawdown,
-            execution_time (seconds).
-            On failure includes: error_message.
+            On success: full results including total_return, sharpe_ratio,
+            max_drawdown, execution_time_seconds, csv_url, tearsheet_url.
+            On failure: status="failed" and error_message.
+            On timeout: status="pending" and a message to call again.
         """
-        return await _get_backtest_status_impl(queue, task_id)
+        return await _wait_for_backtest_impl(queue, object_store, task_id, timeout_seconds)
 
     async def get_backtest_results(task_id: str) -> dict:
         """Get full results for a completed backtest, including download URLs.
 
-        Only call this after get_backtest_status returns status="complete".
+        Only call this after wait_for_backtest returns status="complete".
 
         Parameters
         ----------
@@ -492,4 +494,4 @@ def make_backtest_tools(queue, object_store):
         """
         return await _get_backtest_results_impl(queue, object_store, task_id)
 
-    return submit_backtest, get_backtest_status, get_backtest_results
+    return submit_backtest, wait_for_backtest, get_backtest_results
