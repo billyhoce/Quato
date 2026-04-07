@@ -21,6 +21,14 @@ services:
     command: server /data --console-address ":9001"
     restart: unless-stopped
 
+  frontend-build:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: quato-frontend-build
+    volumes:
+      - frontend_dist:/dist
+
   quato-backend:
     build: .
     container_name: quato-backend
@@ -43,11 +51,14 @@ services:
       CF_API_TOKEN: ${CF_API_TOKEN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
-      - ./frontend/dist:/srv/frontend
+      - frontend_dist:/srv/frontend
       - caddy_data:/data
+    depends_on:
+      - frontend-build
     restart: unless-stopped
 
 volumes:
   redis_data:
   minio_data:
   caddy_data:
+  frontend_dist:
