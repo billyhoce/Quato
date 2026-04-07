@@ -17,6 +17,9 @@ from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 import config
 from mcp_server.external_server import mcp as external_mcp, set_services as set_mcp_services
+
+# Build the MCP ASGI sub-app once so we can wire its lifespan into ours
+_mcp_http_app = external_mcp.http_app(path="/")
 from models.backtest_models import (
     BacktestConfig,
     TaskRecord,
@@ -57,45 +60,46 @@ async def lifespan(app: FastAPI):
     """Initialize services on startup."""
     global backtest_worker
 
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    logger.info("Initializing services...")
+    async with _mcp_http_app.lifespan(app):
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        logger.info("Initializing services...")
 
-    # Ensure the object store bucket exists (synchronous boto3 call)
-    await asyncio.to_thread(object_store.ensure_bucket)
+        # Ensure the object store bucket exists (synchronous boto3 call)
+        await asyncio.to_thread(object_store.ensure_bucket)
 
-    # AsyncRedisSaver owns the connection for LangGraph conversation checkpoints.
-    async with AsyncRedisSaver.from_conn_string(redis_url) as checkpointer:
-        await agent_service.initialize(checkpointer)
+        # AsyncRedisSaver owns the connection for LangGraph conversation checkpoints.
+        async with AsyncRedisSaver.from_conn_string(redis_url) as checkpointer:
+            await agent_service.initialize(checkpointer)
 
-        await strategy_manager.connect()
-        await backtest_queue.connect()
+            await strategy_manager.connect()
+            await backtest_queue.connect()
 
-        failed_count = await backtest_queue.mark_running_as_failed()
-        if failed_count > 0:
-            logger.info(f"Marked {failed_count} orphaned tasks as failed")
+            failed_count = await backtest_queue.mark_running_as_failed()
+            if failed_count > 0:
+                logger.info(f"Marked {failed_count} orphaned tasks as failed")
 
-        base_dir = Path(__file__).parent.parent
-        backtest_worker = BacktestWorker(
-            queue=backtest_queue,
-            base_dir=base_dir,
-            object_store=object_store,
-            agent_service=agent_service,  # Enable automatic retry with agent
-            max_retries=config.MAX_AGENT_RETRIES,
-        )
-        await backtest_worker.start()
+            base_dir = Path(__file__).parent.parent
+            backtest_worker = BacktestWorker(
+                queue=backtest_queue,
+                base_dir=base_dir,
+                object_store=object_store,
+                agent_service=agent_service,  # Enable automatic retry with agent
+                max_retries=config.MAX_AGENT_RETRIES,
+            )
+            await backtest_worker.start()
 
-        set_mcp_services(backtest_queue, object_store)
-        logger.info("API ready!")
+            set_mcp_services(backtest_queue, object_store)
+            logger.info("API ready!")
 
-        yield
+            yield
 
-        logger.info("Shutting down...")
+            logger.info("Shutting down...")
 
-        if backtest_worker:
-            await backtest_worker.stop()
+            if backtest_worker:
+                await backtest_worker.stop()
 
-        await strategy_manager.close()
-        await backtest_queue.close()
+            await strategy_manager.close()
+            await backtest_queue.close()
 
 
 app = FastAPI(
@@ -106,7 +110,7 @@ app = FastAPI(
 )
 
 # Mount external MCP server for web Claude users
-app.mount("/mcp", external_mcp.http_app(path="/"))
+app.mount("/mcp", _mcp_http_app)
 
 # CORS — allow frontend dev server and any configured origins
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")

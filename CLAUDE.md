@@ -3,3 +3,5 @@ This repo contains a agent that helps convert natural language trading strategie
 Important files: 
 - services/agent_service: handles the agent and user interactions with it
 - services/backtest_worker: handles backtesting requests from users
+
+There are two mcp severs, one for my UI's usage, and one designed for agents like claude to connect to to work. The latter version has backtesting endpoints. The details are in the mcp_server folder.
