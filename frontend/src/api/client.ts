@@ -53,17 +53,9 @@ export async function apiSSEFetch<T>(
     throw new Error(errBody.detail || `API error ${res.status}`)
   }
 
-  // Wait for the full response. The server sends SSE keepalives to prevent
-  // Cloudflare 524 timeouts; the browser consumes them transparently.
-  // We only need the final "data: " event.
+  // The server streams keepalive whitespace lines while the agent works,
+  // then sends the JSON payload at the end. Just read the full body and
+  // trim the keepalive whitespace before parsing.
   const text = await res.text()
-
-  // Find the last "data: " line — that's our JSON payload
-  for (const line of text.split(/\r?\n/).reverse()) {
-    if (line.startsWith("data: ")) {
-      return JSON.parse(line.slice(6)) as T
-    }
-  }
-
-  throw new Error("SSE stream ended without data event")
+  return JSON.parse(text.trim()) as T
 }

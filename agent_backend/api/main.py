@@ -222,7 +222,7 @@ async def chat(
     if not x_session_id:
         raise HTTPException(status_code=400, detail="X-Session-ID header required")
 
-    async def _event_stream():
+    async def _stream():
         # Run the agent in a background task so we can send keepalives
         agent_task = asyncio.create_task(
             agent_service.chat(x_session_id, request.message)
@@ -233,8 +233,8 @@ async def chat(
                 try:
                     await asyncio.wait_for(asyncio.shield(agent_task), timeout=15)
                 except asyncio.TimeoutError:
-                    # Agent still working — send SSE comment to keep connection alive
-                    yield ": keepalive\n\n"
+                    # Agent still working — send a space to keep connection alive
+                    yield " \n"
 
             result = agent_task.result()
         except Exception as e:
@@ -246,11 +246,11 @@ async def chat(
                 "error": str(e),
             }
 
-        yield f"data: {json.dumps(result)}\n\n"
+        yield json.dumps(result)
 
     return StreamingResponse(
-        _event_stream(),
-        media_type="text/event-stream",
+        _stream(),
+        media_type="application/json",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
