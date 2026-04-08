@@ -62,21 +62,27 @@ export async function apiSSEFetch<T>(
     if (done) break
     buffer += decoder.decode(value, { stream: true })
 
-    // SSE events are terminated by a blank line (\n\n).
-    // Wait for the full event before parsing to avoid chunked reads
-    // that split the JSON payload across multiple read() calls.
-    const eventEnd = buffer.indexOf("\n\n")
+    // SSE events are delimited by a blank line.
+    // Support both \n\n and \r\n\r\n line endings.
+    let eventEnd = buffer.indexOf("\n\n")
+    let skip = 2
+    if (eventEnd === -1) {
+      eventEnd = buffer.indexOf("\r\n\r\n")
+      skip = 4
+    }
     if (eventEnd === -1) continue
 
     const event = buffer.slice(0, eventEnd)
-    const dataMatch = event.match(/^data: (.+)$/m)
-    if (dataMatch) {
-      reader.cancel()
-      return JSON.parse(dataMatch[1]) as T
-    }
+    buffer = buffer.slice(eventEnd + skip)
 
-    // Not a data event (e.g. keepalive comment) — discard and continue
-    buffer = buffer.slice(eventEnd + 2)
+    // Extract the data payload — everything after "data: " prefix
+    const dataPrefix = "data: "
+    const dataLine = event.split(/\r?\n/).find(line => line.startsWith(dataPrefix))
+    if (dataLine) {
+      reader.cancel()
+      return JSON.parse(dataLine.slice(dataPrefix.length)) as T
+    }
+    // Not a data event (keepalive comment) — continue
   }
 
   throw new Error("SSE stream ended without data event")
