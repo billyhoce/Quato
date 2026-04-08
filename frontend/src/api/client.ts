@@ -53,36 +53,16 @@ export async function apiSSEFetch<T>(
     throw new Error(errBody.detail || `API error ${res.status}`)
   }
 
-  const reader = res.body!.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ""
+  // Wait for the full response. The server sends SSE keepalives to prevent
+  // Cloudflare 524 timeouts; the browser consumes them transparently.
+  // We only need the final "data: " event.
+  const text = await res.text()
 
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-
-    // SSE events are delimited by a blank line.
-    // Support both \n\n and \r\n\r\n line endings.
-    let eventEnd = buffer.indexOf("\n\n")
-    let skip = 2
-    if (eventEnd === -1) {
-      eventEnd = buffer.indexOf("\r\n\r\n")
-      skip = 4
+  // Find the last "data: " line — that's our JSON payload
+  for (const line of text.split(/\r?\n/).reverse()) {
+    if (line.startsWith("data: ")) {
+      return JSON.parse(line.slice(6)) as T
     }
-    if (eventEnd === -1) continue
-
-    const event = buffer.slice(0, eventEnd)
-    buffer = buffer.slice(eventEnd + skip)
-
-    // Extract the data payload — everything after "data: " prefix
-    const dataPrefix = "data: "
-    const dataLine = event.split(/\r?\n/).find(line => line.startsWith(dataPrefix))
-    if (dataLine) {
-      reader.cancel()
-      return JSON.parse(dataLine.slice(dataPrefix.length)) as T
-    }
-    // Not a data event (keepalive comment) — continue
   }
 
   throw new Error("SSE stream ended without data event")
