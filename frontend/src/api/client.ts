@@ -57,5 +57,14 @@ export async function apiSSEFetch<T>(
   // then sends the JSON payload at the end. Just read the full body and
   // trim the keepalive whitespace before parsing.
   const text = await res.text()
-  return JSON.parse(text.trim()) as T
+  const trimmed = text.trim()
+  console.log(`[apiSSEFetch] raw length=${text.length}, trimmed length=${trimmed.length}`)
+  console.log(`[apiSSEFetch] first 200 chars:`, trimmed.slice(0, 200))
+  console.log(`[apiSSEFetch] last 200 chars:`, trimmed.slice(-200))
+  try {
+    return JSON.parse(trimmed) as T
+  } catch (e) {
+    console.error(`[apiSSEFetch] JSON parse failed. Full text:`, trimmed)
+    throw e
+  }
 }

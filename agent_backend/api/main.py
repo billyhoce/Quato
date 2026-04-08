@@ -246,7 +246,11 @@ async def chat(
                 "error": str(e),
             }
 
-        yield json.dumps(result)
+        payload = json.dumps(result)
+        logger.info(f"Chat response payload length: {len(payload)} bytes")
+        logger.info(f"Chat response payload (first 500 chars): {payload[:500]}")
+        logger.info(f"Chat response payload (last 500 chars): {payload[-500:]}")
+        yield payload
 
     return StreamingResponse(
         _stream(),
