@@ -22,7 +22,6 @@ export function MainLayout() {
   const [pendingChatMessage, setPendingChatMessage] = useState<
     { content: string; isSystem: boolean } | null
   >(null)
-  const [isChatPending, setIsChatPending] = useState(false)
   const startBacktest = useStartBacktest()
 
   // Backtest watcher — tracks which task completions have already triggered a notification
@@ -141,7 +140,6 @@ export function MainLayout() {
           onStrategyUpdate={handleStrategyUpdate}
           pendingMessage={pendingChatMessage}
           onPendingMessageHandled={() => setPendingChatMessage(null)}
-          onPendingChange={setIsChatPending}
         />
         <Sidebar
           open={sidebarOpen}
