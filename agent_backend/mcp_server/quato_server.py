@@ -1,8 +1,6 @@
 import json
 import sys
-from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator
 
 # Ensure the project root is on sys.path so all packages are importable
 # whether this file is run as a standalone script or as part of the FastAPI app.
@@ -21,32 +19,11 @@ from agent_backend.mcp_server.tools import (
     search_securities,
     create_universe,
     delete_universe,
-    make_backtest_tools,
 )
-from backtesting.queue.backtest_queue import BacktestQueue
-from backtesting.storage.object_store import ObjectStoreService
-
-
-@asynccontextmanager
-async def lifespan(server: FastMCP) -> AsyncIterator[None]:
-    """Initialize backtest services and register backtest tools at startup."""
-    queue = BacktestQueue()      # reads REDIS_URL from env (forwarded by agent_service.py)
-    store = ObjectStoreService() # reads OBJECT_STORE_* from env; only constructs boto3 client
-    await queue.connect()
-
-    submit_backtest, wait_for_backtest, get_backtest_results = make_backtest_tools(queue, store)
-    server.tool(submit_backtest)
-    server.tool(wait_for_backtest)
-    server.tool(get_backtest_results)
-
-    try:
-        yield
-    finally:
-        await queue.close()
 
 
 # Initialize FastMCP server
-mcp = FastMCP("ZiplineStrategy", lifespan=lifespan)
+mcp = FastMCP("ZiplineStrategy")
 
 
 @mcp.resource("ziplineApi://zipline_categories")

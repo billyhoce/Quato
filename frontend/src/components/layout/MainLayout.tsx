@@ -5,7 +5,7 @@ import { Sidebar } from "./Sidebar"
 import { ChatSidebar } from "./ChatSidebar"
 import { ChatPanel } from "../chat/ChatPanel"
 import { CodeViewerModal } from "../strategy/CodeViewerModal"
-import { useStrategy, useBacktestHistory } from "../../api/hooks"
+import { useStrategy, useBacktestHistory, useStartBacktest } from "../../api/hooks"
 import { useSession } from "../../context/SessionContext"
 import { apiFetch } from "../../api/client"
 import type { StrategyResponse } from "../../api/types"
@@ -23,6 +23,7 @@ export function MainLayout() {
     { content: string; isSystem: boolean } | null
   >(null)
   const [isChatPending, setIsChatPending] = useState(false)
+  const startBacktest = useStartBacktest()
 
   // Backtest watcher — tracks which task completions have already triggered a notification
   const [watcherInitialized, setWatcherInitialized] = useState(false)
@@ -54,12 +55,15 @@ export function MainLayout() {
       // Mark seen before setting state to prevent duplicate fires on re-render
       seenTaskIdsRef.current.add(task.task_id)
 
-      const content =
-        task.status === "complete"
-          ? `Backtest completed — task ${task.task_id}. Please review the results and summarise performance for the user.`
-          : `Backtest failed — task ${task.task_id}. Please check the error and fix the strategy for a retry, or explain the issue if it cannot be fixed.`
-
-      setPendingChatMessage({ content, isSystem: true })
+      // Only notify the agent on failure so it can fix the code.
+      // Successful backtests are shown in the sidebar history automatically.
+      if (task.status === "failed") {
+        const errorDetail = task.error_message || "Unknown error"
+        setPendingChatMessage({
+          content: `The backtest failed with error: ${errorDetail}. Please fix the strategy code to resolve this error.`,
+          isSystem: true,
+        })
+      }
       break // One notification per effect pass; the next poll cycle handles the rest
     }
   }, [backtestHistory, watcherInitialized, activeSessionId])
@@ -83,17 +87,9 @@ export function MainLayout() {
 
   const handleRunBacktest = useCallback(
     (config: { bundle: string; start_date: string; end_date: string; capital_base: number }) => {
-      const msg = [
-        "Please run a backtest with the following parameters:",
-        `- Bundle: ${config.bundle}`,
-        `- Start date: ${config.start_date}`,
-        `- End date: ${config.end_date}`,
-        `- Capital base: $${config.capital_base.toLocaleString()}`,
-        `- Session ID: ${activeSessionId}`,
-      ].join("\n")
-      setPendingChatMessage({ content: msg, isSystem: false })
+      startBacktest.mutate(config)
     },
-    [activeSessionId]
+    [startBacktest]
   )
 
   const handleSwitchSession = useCallback(
@@ -153,7 +149,7 @@ export function MainLayout() {
           hasStrategy={hasStrategy}
           onViewCode={() => setCodeModalOpen(true)}
           onRunBacktest={handleRunBacktest}
-          isRunning={isChatPending}
+          isRunning={startBacktest.isPending}
         />
       </div>
 

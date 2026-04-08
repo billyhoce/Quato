@@ -11,6 +11,7 @@ from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
@@ -207,21 +208,54 @@ class UniverseSecuritiesResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@app.post("/api/chat", response_model=ChatResponse)
+@app.post("/api/chat")
 async def chat(
     request: ChatRequest,
     x_session_id: str = Header(default=None)
 ):
-    """Send a message to the agent and get a response."""
+    """Send a message to the agent and get a response.
+
+    Returns an SSE stream that sends keepalive comments while the agent is
+    working, then emits the final JSON result as a ``data:`` event.  This
+    prevents Cloudflare from killing the connection with a 524 timeout.
+    """
     if not x_session_id:
         raise HTTPException(status_code=400, detail="X-Session-ID header required")
 
-    try:
-        result = await agent_service.chat(x_session_id, request.message)
-        return ChatResponse(**result)
-    except Exception as e:
-        logger.error(f"Chat error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    async def _event_stream():
+        # Run the agent in a background task so we can send keepalives
+        agent_task = asyncio.create_task(
+            agent_service.chat(x_session_id, request.message)
+        )
+
+        try:
+            while not agent_task.done():
+                try:
+                    await asyncio.wait_for(asyncio.shield(agent_task), timeout=15)
+                except asyncio.TimeoutError:
+                    # Agent still working — send SSE comment to keep connection alive
+                    yield ": keepalive\n\n"
+
+            result = agent_task.result()
+        except Exception as e:
+            logger.error(f"Chat error: {str(e)}", exc_info=True)
+            result = {
+                "message": "",
+                "strategy_updated": False,
+                "strategy_code": None,
+                "error": str(e),
+            }
+
+        yield f"data: {json.dumps(result)}\n\n"
+
+    return StreamingResponse(
+        _event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/api/strategy/current", response_model=StrategyResponse)

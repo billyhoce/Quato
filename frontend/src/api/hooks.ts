@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { apiFetch } from "./client"
+import { apiFetch, apiSSEFetch } from "./client"
 import type {
   ChatRequest,
   ChatResponse,
@@ -18,10 +18,7 @@ export function useChat() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: ChatRequest) =>
-      apiFetch<ChatResponse>("/chat", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+      apiSSEFetch<ChatResponse>("/chat", data),
     onSuccess: (data) => {
       if (data.strategy_updated) {
         queryClient.invalidateQueries({ queryKey: ["strategy"] })
